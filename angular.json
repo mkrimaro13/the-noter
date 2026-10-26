@@ -55,6 +55,7 @@
             "styles": [
               "@fontsource-variable/inter/wght.css",
               "@fontsource-variable/newsreader/wght.css",
+              "node_modules/katex/dist/katex.min.css",
               "src/styles.scss"
             ]
           },
@@ -63,12 +64,12 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
+                  "maximumWarning": "560kB",
                   "maximumError": "1MB"
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "12kB",
+                  "maximumWarning": "16kB",
                   "maximumError": "24kB"
                 }
               ],

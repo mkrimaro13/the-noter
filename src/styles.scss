@@ -12,12 +12,19 @@
   --muted: #6f695e;
   --line: #e4ded3;
   --line-soft: #ece7dd;
-  --accent: #3d6b58;
+  --accent: #5566d0;
   --accent-contrast: #fbfaf7;
-  --accent-soft: rgba(61, 107, 88, 0.08);
-  --accent-line: rgba(61, 107, 88, 0.32);
+  --accent-soft: rgba(85, 102, 208, 0.08);
+  --accent-line: rgba(85, 102, 208, 0.32);
   --danger: #a4472f;
   --danger-soft: rgba(164, 71, 47, 0.08);
+  --syntax-comment: #8a8173;
+  --syntax-keyword: #7b4bb7;
+  --syntax-string: #2c7a5b;
+  --syntax-number: #ad5726;
+  --syntax-title: #355fb5;
+  --syntax-type: #a3476c;
+  --syntax-builtin: #3c6a8d;
   --shadow-soft: 0 1px 2px rgba(40, 33, 20, 0.05), 0 8px 24px rgba(40, 33, 20, 0.04);
   --shadow-lift: 0 18px 50px rgba(40, 33, 20, 0.18), 0 0 0 1px rgba(40, 33, 20, 0.06);
 
@@ -34,12 +41,19 @@
     --muted: #948d80;
     --line: #2c2a26;
     --line-soft: #242320;
-    --accent: #8dbfa5;
+    --accent: #a9b8ff;
     --accent-contrast: #141512;
-    --accent-soft: rgba(141, 191, 165, 0.1);
-    --accent-line: rgba(141, 191, 165, 0.32);
+    --accent-soft: rgba(169, 184, 255, 0.12);
+    --accent-line: rgba(169, 184, 255, 0.32);
     --danger: #e08a70;
     --danger-soft: rgba(224, 138, 112, 0.1);
+    --syntax-comment: #7d776c;
+    --syntax-keyword: #c7b0ff;
+    --syntax-string: #8fd3b5;
+    --syntax-number: #f0b47a;
+    --syntax-title: #9fc0ff;
+    --syntax-type: #f2a3c0;
+    --syntax-builtin: #8fc7e8;
     --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.18);
     --shadow-lift: 0 18px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
 
@@ -163,4 +177,91 @@ textarea:focus-visible {
 
 .cdk-drag-dragging {
   cursor: grabbing;
+}
+
+/* Code syntax highlighting ---------------------------------------------- */
+/* token classes are injected by highlight.js, so they live in this global sheet. */
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-doctag,
+.hljs-formula {
+  color: var(--syntax-keyword);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute {
+  color: var(--syntax-string);
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--syntax-number);
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-name {
+  color: var(--syntax-title);
+}
+
+.hljs-type,
+.hljs-title.class_,
+.hljs-class .hljs-title {
+  color: var(--syntax-type);
+}
+
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-variable.language_,
+.hljs-attr,
+.hljs-property,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-selector-pseudo {
+  color: var(--syntax-builtin);
+}
+
+.hljs-params,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-subst {
+  color: var(--ink-soft);
+}
+
+.hljs-meta {
+  color: var(--syntax-comment);
+}
+
+.hljs-deletion {
+  color: var(--danger);
+}
+
+.hljs-link {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 600;
+}
+
+/* Display math sits inside compact function blocks. */
+app-latex .katex-display {
+  margin: 0;
 }

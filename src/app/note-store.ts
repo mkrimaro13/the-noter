@@ -1,4 +1,5 @@
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
+import { FenceShortcut, MarkdownBlockShortcut } from './markdown';
 import {
   BlockPatch,
   BlockType,
@@ -9,6 +10,8 @@ import {
   Note,
   NoteBlock,
   NoteMeta,
+  NoteTreeItem,
+  blockPlainText,
   createBlock,
   createImageColumn,
   createNote,
@@ -30,6 +33,13 @@ export class NoteStore {
 
   /** Notes ordered by most recently edited. */
   readonly notes = computed(() => [...this.allNotes()].sort((a, b) => b.updatedAt - a.updatedAt));
+
+  /**
+   * Top-level notes with their nested children, depth-first and each level
+   * ordered by the last edit. Notes whose parent disappeared become roots so
+   * they can never be lost.
+   */
+  readonly noteTree = computed<NoteTreeItem[]>(() => buildNoteTree(this.notes()));
 
   readonly query = signal('');
 
@@ -87,6 +97,54 @@ export class NoteStore {
     return note;
   }
 
+  /**
+   * Creates a note inside `parentId`, selects it, and asks the editor to focus
+   * its title so the branch can be named right away.
+   */
+  createChildNote(parentId: string): Note {
+    const parentExists = this.allNotes().some((note) => note.id === parentId);
+    const note = createNote(parentExists ? parentId : null);
+    this.allNotes.update((notes) => [note, ...notes]);
+    this.query.set('');
+    this.select(note.id);
+    this.pendingTitleFocus.set(note.id);
+    return note;
+  }
+
+  /** Notes nested directly inside `noteId`, most recently edited first. */
+  childNotes(noteId: string): Note[] {
+    return this.notes().filter((note) => note.parentId === noteId);
+  }
+
+  /**
+   * The parent chain for a note, outermost first. The visited guard keeps a
+   * corrupted stored tree from locking the editor into a loop.
+   */
+  parentChain(note: Note): Note[] {
+    const byId = new Map(this.allNotes().map((item) => [item.id, item]));
+    const chain: Note[] = [];
+    const seen = new Set<string>([note.id]);
+    let parentId = note.parentId;
+
+    while (parentId && !seen.has(parentId)) {
+      seen.add(parentId);
+      const parent = byId.get(parentId);
+      if (!parent) break;
+      chain.unshift(parent);
+      parentId = parent.parentId;
+    }
+
+    return chain;
+  }
+
+  setIcon(noteId: string, icon: string): void {
+    this.mutate(noteId, (note) => ({ ...note, icon: icon.slice(0, 16) }));
+  }
+
+  setCover(noteId: string, cover: string): void {
+    this.mutate(noteId, (note) => ({ ...note, cover }));
+  }
+
   select(id: string | null): void {
     if (id === null || this.allNotes().some((note) => note.id === id)) {
       this.selected.set(id);
@@ -132,6 +190,59 @@ export class NoteStore {
   }
 
   /**
+   * Creates a child note and appends an inline sub-note block that points at it.
+   * The child is not selected, so it can be named and written in place.
+   */
+  addSubnoteBlock(noteId: string): NoteBlock | null {
+    const parent = this.allNotes().find((note) => note.id === noteId);
+    if (!parent) return null;
+
+    const child = createNote(noteId);
+    const block = createBlock('subnote', { noteId: child.id });
+    const now = Date.now();
+
+    this.allNotes.update((notes) => [
+      { ...parent, blocks: [...parent.blocks, block], updatedAt: now },
+      child,
+      ...notes.filter((note) => note.id !== noteId),
+    ]);
+
+    return block;
+  }
+
+  /**
+   * Turns an existing block into an inline sub-note, moving any writing into the
+   * new child note so changing type never silently discards the content.
+   */
+  convertBlockToSubnote(noteId: string, blockId: string): NoteBlock | null {
+    const parent = this.allNotes().find((note) => note.id === noteId);
+    const existing = parent?.blocks.find((block) => block.id === blockId);
+    if (!parent || !existing) return null;
+    if (existing.type === 'subnote') return existing;
+
+    const child = createNote(noteId);
+    const content = blockPlainText(existing);
+    if (content.trim().length > 0) {
+      child.blocks = [createBlock('text', { columns: [content], columnCount: 1 })];
+    }
+
+    const block = { ...createBlock('subnote', { noteId: child.id }), id: existing.id };
+    const now = Date.now();
+
+    this.allNotes.update((notes) => [
+      {
+        ...parent,
+        blocks: parent.blocks.map((item) => (item.id === blockId ? block : item)),
+        updatedAt: now,
+      },
+      child,
+      ...notes.filter((note) => note.id !== noteId),
+    ]);
+
+    return block;
+  }
+
+  /**
    * Inserts blocks after `afterBlockId`, or at the end when it is null or no
    * longer exists. Used by clipboard image pasting.
    */
@@ -169,6 +280,61 @@ export class NoteStore {
         block.id === blockId ? convertBlock(block, type) : block,
       ),
     }));
+  }
+
+  /**
+   * Applies a fenced-code shortcut typed in a text block. ` ```fn ` (or
+   * ` ```function `) produces a function block, ` ```math ` (or ` ```latex ` /
+   * ` ```tex `) produces a math-rendered function block, and every other fence
+   * produces a code block with the language label.
+   */
+  convertTextBlockToCode(noteId: string, blockId: string, fence: FenceShortcut): void {
+    const math =
+      fence.language === 'math' || fence.language === 'latex' || fence.language === 'tex';
+    const fn = fence.language === 'fn' || fence.language === 'function';
+    const type: BlockType = math || fn ? 'function' : 'code';
+
+    this.mutate(noteId, (note) => ({
+      ...note,
+      blocks: note.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== 'text') return block;
+
+        const converted = convertBlock(block, type);
+        return {
+          ...converted,
+          text: fence.text,
+          language: type === 'code' ? fence.language : math ? 'latex' : '',
+        };
+      }),
+    }));
+  }
+
+  /**
+   * Applies a Markdown block prefix typed at the start of a single-column text
+   * block, turning it into a heading or list while keeping the rest of the line.
+   */
+  applyBlockShortcut(
+    noteId: string,
+    blockId: string,
+    shortcut: MarkdownBlockShortcut,
+  ): NoteBlock | null {
+    let updated: NoteBlock | null = null;
+
+    this.mutate(noteId, (note) => ({
+      ...note,
+      blocks: note.blocks.map((block) => {
+        if (block.id !== blockId || block.type !== 'text') return block;
+
+        const converted = convertBlock(block, shortcut.kind);
+        updated =
+          shortcut.kind === 'heading'
+            ? { ...converted, type: 'heading', text: shortcut.text, level: shortcut.level }
+            : { ...converted, type: 'list', items: shortcut.items, ordered: shortcut.ordered };
+        return updated;
+      }),
+    }));
+
+    return updated;
   }
 
   updateColumn(noteId: string, blockId: string, index: number, value: string): void {
@@ -220,6 +386,35 @@ export class NoteStore {
 
       const blocks = [...note.blocks];
       blocks.splice(index, 1, { ...block, columns }, created);
+      return { ...note, blocks };
+    });
+
+    return created;
+  }
+
+  /**
+   * Splits a heading at the caret and inserts a new text block after it. The
+   * heading keeps the text before the caret; the new block receives the rest.
+   */
+  splitHeadingBlock(
+    noteId: string,
+    blockId: string,
+    change: { before: string; after: string },
+  ): NoteBlock | null {
+    let created: NoteBlock | null = null;
+
+    this.mutate(noteId, (note) => {
+      const index = note.blocks.findIndex((block) => block.id === blockId);
+      const block = note.blocks[index];
+      if (!block || block.type !== 'heading') return note;
+
+      created = createBlock('text', {
+        columns: [change.after],
+        columnCount: 1,
+      });
+
+      const blocks = [...note.blocks];
+      blocks.splice(index, 1, { ...block, text: change.before }, created);
       return { ...note, blocks };
     });
 
@@ -303,8 +498,23 @@ export class NoteStore {
     });
   }
 
+  /**
+   * Deletes a note. Its direct children move up to the deleted note's parent
+   * instead of being removed with it, and any inline sub-note blocks that point
+   * at the deleted note are removed so no dangling inline editors remain.
+   */
   deleteNote(noteId: string): void {
-    const remaining = this.allNotes().filter((note) => note.id !== noteId);
+    const deleted = this.allNotes().find((note) => note.id === noteId) ?? null;
+    const parentId = deleted?.parentId ?? null;
+    const remaining = this.allNotes()
+      .filter((note) => note.id !== noteId)
+      .map((note) => {
+        const next = note.parentId === noteId ? { ...note, parentId } : note;
+        const blocks = next.blocks.filter(
+          (block) => !(block.type === 'subnote' && block.noteId === noteId),
+        );
+        return blocks.length === next.blocks.length ? next : { ...next, blocks };
+      });
     this.allNotes.set(remaining);
 
     if (this.selected() === noteId) {
@@ -337,6 +547,43 @@ export class NoteStore {
   }
 }
 
+function buildNoteTree(notes: Note[]): NoteTreeItem[] {
+  const ids = new Set(notes.map((note) => note.id));
+  const childrenByParent = new Map<string, Note[]>();
+  const roots: Note[] = [];
+
+  for (const note of notes) {
+    if (note.parentId && note.parentId !== note.id && ids.has(note.parentId)) {
+      const siblings = childrenByParent.get(note.parentId) ?? [];
+      siblings.push(note);
+      childrenByParent.set(note.parentId, siblings);
+    } else {
+      roots.push(note);
+    }
+  }
+
+  const visited = new Set<string>();
+  const build = (note: Note, depth: number): NoteTreeItem => {
+    visited.add(note.id);
+    const children = (childrenByParent.get(note.id) ?? [])
+      .filter((child) => !visited.has(child.id))
+      .map((child) => build(child, depth + 1));
+    return { note, depth, children };
+  };
+
+  const tree = roots.map((note) => build(note, 0));
+
+  // A corrupt parent cycle has no root; surface its notes at the top level
+  // rather than hiding them forever.
+  for (const note of notes) {
+    if (!visited.has(note.id)) {
+      tree.push(build(note, 0));
+    }
+  }
+
+  return tree;
+}
+
 function matchesQuery(note: Note, query: string): boolean {
   if (note.title.toLowerCase().includes(query)) return true;
   if (
@@ -364,13 +611,42 @@ function loadNotes(): Note[] {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    return parsed
+    const notes = parsed
       .map(normalizeNote)
       .filter((note): note is Note => note !== null)
       .sort((a, b) => b.updatedAt - a.updatedAt);
+
+    return sanitizeParents(notes);
   } catch {
     return [];
   }
+}
+
+/**
+ * Old notes have no parent id. More recent notes may reference a deleted note
+ * or (after manual editing) each other in a loop; both cases become top-level
+ * notes instead of disappearing from the sidebar.
+ */
+function sanitizeParents(notes: Note[]): Note[] {
+  const ids = new Set(notes.map((note) => note.id));
+  const byId = new Map(notes.map((note) => [note.id, note]));
+
+  return notes.map((note) => {
+    if (!note.parentId) return { ...note, parentId: null };
+    if (note.parentId === note.id || !ids.has(note.parentId)) {
+      return { ...note, parentId: null };
+    }
+
+    const seen = new Set<string>([note.id]);
+    let current: string | null = note.parentId;
+    while (current) {
+      if (seen.has(current)) return { ...note, parentId: null };
+      seen.add(current);
+      current = byId.get(current)?.parentId ?? null;
+    }
+
+    return note;
+  });
 }
 
 function loadSelection(notes: Note[]): string | null {
@@ -393,6 +669,9 @@ function normalizeNote(value: unknown): Note | null {
   return {
     id: stringOr(value['id'], uid('n')),
     title: stringOr(value['title'], ''),
+    icon: stringOr(value['icon'], ''),
+    cover: stringOr(value['cover'], ''),
+    parentId: stringOr(value['parentId'], '') || null,
     metadata: metadataRaw.map(normalizeMeta).filter((meta): meta is NoteMeta => meta !== null),
     blocks: blocksRaw.map(normalizeBlock).filter((block): block is NoteBlock => block !== null),
     createdAt,
@@ -413,7 +692,15 @@ function normalizeBlock(value: unknown): NoteBlock | null {
   if (!isRecord(value)) return null;
 
   const type = value['type'];
-  if (type !== 'text' && type !== 'heading' && type !== 'list' && type !== 'image') {
+  if (
+    type !== 'text' &&
+    type !== 'heading' &&
+    type !== 'list' &&
+    type !== 'image' &&
+    type !== 'code' &&
+    type !== 'function' &&
+    type !== 'subnote'
+  ) {
     return null;
   }
 
@@ -428,6 +715,7 @@ function normalizeBlock(value: unknown): NoteBlock | null {
 
   const level = Math.min(Math.max(Math.round(numberOr(value['level'], 1)), 1), MAX_HEADING_LEVEL);
   const mainColumnType: ImageColumn['type'] = value['mainColumnType'] === 'text' ? 'text' : 'image';
+  const noteId = stringOr(value['noteId'], '');
 
   if (type === 'text') {
     // Older notes stored the whole paragraph in `text`. Treat it as the first
@@ -448,10 +736,12 @@ function normalizeBlock(value: unknown): NoteBlock | null {
       src: stringOr(value['src'], ''),
       caption: stringOr(value['caption'], ''),
       level: 1,
+      language: '',
       columns,
       imageColumns: [],
       mainColumnType,
       columnCount,
+      noteId: '',
     };
   }
 
@@ -478,10 +768,12 @@ function normalizeBlock(value: unknown): NoteBlock | null {
       src: stringOr(value['src'], ''),
       caption: stringOr(value['caption'], ''),
       level: 1,
+      language: '',
       columns: [],
       imageColumns,
       mainColumnType,
       columnCount,
+      noteId: '',
     };
   }
 
@@ -494,10 +786,12 @@ function normalizeBlock(value: unknown): NoteBlock | null {
     src: stringOr(value['src'], ''),
     caption: stringOr(value['caption'], ''),
     level,
+    language: stringOr(value['language'], ''),
     columns: [],
     imageColumns: [],
     mainColumnType,
     columnCount: 1,
+    noteId: type === 'subnote' ? noteId : '',
   };
 }
 

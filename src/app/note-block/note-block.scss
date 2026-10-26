@@ -52,6 +52,31 @@
   min-width: 0;
 }
 
+.field {
+  position: relative;
+  min-width: 0;
+}
+
+.field-preview {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  white-space: pre-wrap;
+}
+
+.field:focus-within > .field-preview {
+  display: none;
+}
+
+.text-field.has-markup:not(:focus-within) .text-input,
+.heading-field.has-markup:not(:focus-within) .heading-input,
+.list-field.has-markup:not(:focus-within) .list-input {
+  color: transparent;
+}
+
 .text-input,
 .heading-input {
   display: block;
@@ -69,6 +94,15 @@
 
 .text-input {
   min-height: 36px;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: -0.003em;
+  line-height: 1.68;
+}
+
+.text-preview {
+  padding: 3px 0;
+  font-family: var(--font-serif);
   font-size: 18px;
   font-weight: 400;
   letter-spacing: -0.003em;
@@ -161,9 +195,54 @@
   letter-spacing: 0;
 }
 
+.heading-preview {
+  padding: 8px 0 3px;
+  font-family: var(--font-serif);
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.017em;
+  line-height: 1.35;
+}
+
+.heading-preview[data-level='1'] {
+  font-size: 34px;
+  letter-spacing: -0.024em;
+  line-height: 1.25;
+}
+
+.heading-preview[data-level='2'] {
+  font-size: 29px;
+  letter-spacing: -0.019em;
+}
+
+.heading-preview[data-level='3'] {
+  font-size: 25px;
+  letter-spacing: -0.015em;
+}
+
+.heading-preview[data-level='4'] {
+  font-size: 21px;
+  letter-spacing: -0.012em;
+}
+
+.heading-preview[data-level='5'] {
+  font-size: 18.5px;
+  letter-spacing: -0.006em;
+}
+
+.heading-preview[data-level='6'] {
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
 .block-heading .gutter,
 .block-heading .block-actions {
   padding-top: 11px;
+}
+
+.block-code .gutter,
+.block-code .block-actions {
+  padding-top: 9px;
 }
 
 .block-actions {
@@ -361,6 +440,13 @@
   line-height: 1.6;
 }
 
+.list-preview {
+  padding: 3px 0;
+  font-family: var(--font-serif);
+  font-size: 17.5px;
+  line-height: 1.6;
+}
+
 .item-remove {
   display: grid;
   place-items: center;
@@ -410,6 +496,238 @@
 
 .add-item:hover {
   color: var(--accent);
+}
+
+/* Code and function blocks --------------------------------------------- */
+
+.code-block {
+  margin: 3px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.code-block:focus-within {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.code-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px 6px;
+  border-bottom: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface));
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.code-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+}
+
+.code-language {
+  width: 120px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-align: right;
+  text-transform: none;
+}
+
+.code-language::placeholder {
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.code-input {
+  display: block;
+  width: 100%;
+  min-height: 70px;
+  margin: 0;
+  padding: 12px 14px 13px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.75;
+  outline: none;
+  overflow: hidden;
+  resize: none;
+  tab-size: 2;
+}
+
+.code-editor {
+  position: relative;
+}
+
+.code-highlight,
+.code-input {
+  margin: 0;
+  padding: 12px 14px 13px;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.75;
+  tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.code-highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.code-input {
+  position: relative;
+  z-index: 1;
+  color: transparent;
+  caret-color: var(--accent);
+}
+
+.code-input::placeholder,
+.code-input:focus::placeholder {
+  color: var(--muted);
+}
+
+.function-block {
+  margin: 3px 0;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 9px 9px 0;
+  background: var(--accent-soft);
+  overflow: hidden;
+  transition: box-shadow 150ms ease;
+}
+
+.function-block:focus-within {
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.function-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 13px 4px 11px;
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.function-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-soft);
+}
+
+.function-mark {
+  color: var(--accent);
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-style: italic;
+  line-height: 0.8;
+}
+
+.math-toggle {
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  text-transform: none;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.math-toggle:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface-raised) 55%, transparent);
+}
+
+.math-toggle[aria-pressed='true'] {
+  border-color: var(--accent-line);
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  color: var(--accent);
+}
+
+.math-toggle:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 1px;
+}
+
+.function-editor {
+  position: relative;
+  padding: 0 13px 10px 11px;
+}
+
+.function-input {
+  display: block;
+  width: 100%;
+  min-height: 27px;
+  margin: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  outline: none;
+  overflow: hidden;
+  resize: none;
+}
+
+.function-preview {
+  padding: 2px 0 3px;
+}
+
+/* The rendered math is the readable state; clicking it focuses the raw
+   textarea that sits on top, like the Markdown previews. */
+.function-editor.math:not(:focus-within) .function-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 2px 0;
+  color: transparent;
+  caret-color: transparent;
+}
+
+.function-editor.math:focus-within .function-preview {
+  display: none;
 }
 
 /* Images ---------------------------------------------------------------- */
@@ -473,11 +791,13 @@
     height: 22px;
   }
 
-  .text-input {
+  .text-input,
+  .text-preview {
     font-size: 17px;
   }
 
-  .heading-input {
+  .heading-input,
+  .heading-preview {
     font-size: 23px;
   }
 

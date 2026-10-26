@@ -1,4 +1,6 @@
 <div class="image-column" [class.fill]="fill()">
+  <input #filePicker type="file" accept="image/*" hidden (change)="onFileInput($event)" />
+
   <div class="column-toolbar">
     <span class="column-name">Column {{ index() + 1 }}</span>
     <div class="column-types" role="group" [attr.aria-label]="'Column ' + (index() + 1) + ' type'">
@@ -22,19 +24,50 @@
   </div>
 
   @if (column().type === 'text') {
-    <textarea
-      class="column-text"
-      rows="4"
-      appAutosize
-      [value]="column().text"
-      (input)="onText($event)"
-      [appFocus]="focusOnInit()"
-      (appFocusDone)="focused.emit()"
-      [placeholder]="'Write in column ' + (index() + 1) + '…'"
-      [attr.aria-label]="'Image block, text column ' + (index() + 1)"
-    ></textarea>
+    <div class="field column-text-field" [class.has-markup]="hasMarkup(column().text)">
+      <textarea
+        class="column-text"
+        rows="4"
+        appAutosize
+        [value]="column().text"
+        (input)="onText($event)"
+        [appFocus]="focusOnInit()"
+        (appFocusDone)="focused.emit()"
+        [placeholder]="'Write in column ' + (index() + 1) + '…'"
+        [attr.aria-label]="'Image block, text column ' + (index() + 1)"
+      ></textarea>
+      @if (hasMarkup(column().text)) {
+        <div class="field-preview column-text-preview" aria-hidden="true">
+          <app-markdown-inline [text]="column().text" />
+        </div>
+      }
+    </div>
   } @else if (column().src) {
     <figure class="figure">
+      <div class="image-actions">
+        <button
+          class="image-replace"
+          type="button"
+          (click)="browse()"
+          [attr.aria-label]="
+            column().main ? 'Replace image' : 'Replace image in column ' + (index() + 1)
+          "
+          title="Replace image"
+        >
+          <app-icon name="upload" [size]="13" />
+        </button>
+        <button
+          class="image-remove"
+          type="button"
+          (click)="removeImage()"
+          [attr.aria-label]="
+            column().main ? 'Remove image' : 'Remove image from column ' + (index() + 1)
+          "
+          title="Remove image · keeps this block"
+        >
+          <app-icon name="trash" [size]="13" />
+        </button>
+      </div>
       @if (imageFailed()) {
         <div class="image-broken">
           <p>This image couldn’t be loaded.</p>
@@ -48,18 +81,28 @@
         />
       }
       @if (!imageFailed()) {
-        <input
-          class="caption"
-          type="text"
-          [value]="column().caption"
-          (input)="onCaption($event)"
-          [appFocus]="focusOnInit()"
-          (appFocusDone)="focused.emit()"
-          placeholder="Add a caption…"
-          [attr.aria-label]="
-            column().main ? 'Image caption' : 'Image caption, column ' + (index() + 1)
-          "
-        />
+        <div class="field caption-field" [class.has-markup]="hasMarkup(column().caption)">
+          <input
+            class="caption"
+            type="text"
+            [value]="column().caption"
+            (input)="onCaption($event)"
+            [appFocus]="focusOnInit()"
+            (appFocusDone)="focused.emit()"
+            placeholder="Add a caption…"
+            [attr.aria-label]="
+              column().main ? 'Image caption' : 'Image caption, column ' + (index() + 1)
+            "
+          />
+          @if (hasMarkup(column().caption)) {
+            <div class="field-preview caption-preview" aria-hidden="true">
+              <app-markdown-inline [text]="column().caption" />
+            </div>
+          }
+        </div>
+      }
+      @if (imageError()) {
+        <p class="image-error" role="alert">{{ imageError() }}</p>
       }
     </figure>
   } @else {
@@ -77,7 +120,6 @@
         Drop an image here, paste one, or
         <button class="text-button" type="button" (click)="browse()">browse</button>
       </p>
-      <input #filePicker type="file" accept="image/*" hidden (change)="onFileInput($event)" />
       <input
         class="image-url"
         type="url"

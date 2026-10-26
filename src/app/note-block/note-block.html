@@ -1,6 +1,7 @@
 <div
   class="block"
   [class.block-heading]="block().type === 'heading'"
+  [class.block-code]="block().type === 'code' || block().type === 'function'"
   [attr.data-level]="block().type === 'heading' ? block().level : null"
 >
   <div class="gutter">
@@ -33,42 +34,61 @@
           [attr.data-columns]="visibleColumns().length"
         >
           @for (column of visibleColumns(); track $index; let i = $index) {
-            <textarea
-              #columnInput
-              class="text-input"
-              rows="1"
-              appAutosize
-              [value]="column"
-              (input)="onColumnInput($event, i)"
-              (keydown)="onColumnKeydown($event, i)"
-              [appFocus]="focusOnInit() && i === 0"
-              [appFocusOffset]="0"
-              (appFocusDone)="focused.emit()"
-              [placeholder]="i === 0 ? 'Start writing…' : 'Column ' + (i + 1)"
-              [attr.aria-label]="
-                visibleColumns().length > 1
-                  ? 'Text block, column ' + (i + 1) + ' of ' + visibleColumns().length
-                  : 'Text block'
-              "
-            ></textarea>
+            <div class="field text-field" [class.has-markup]="hasMarkup(column)">
+              <textarea
+                #columnInput
+                class="text-input"
+                rows="1"
+                appAutosize
+                [value]="column"
+                (input)="onColumnInput($event, i)"
+                (keydown)="onColumnKeydown($event, i)"
+                [appFocus]="focusOnInit() && i === 0"
+                [appFocusOffset]="0"
+                (appFocusDone)="focused.emit()"
+                [placeholder]="i === 0 ? 'Start writing…' : 'Column ' + (i + 1)"
+                [attr.aria-label]="
+                  visibleColumns().length > 1
+                    ? 'Text block, column ' + (i + 1) + ' of ' + visibleColumns().length
+                    : 'Text block'
+                "
+              ></textarea>
+              @if (hasMarkup(column)) {
+                <div class="field-preview text-preview" aria-hidden="true">
+                  <app-markdown-inline [text]="column" />
+                </div>
+              }
+            </div>
           }
         </div>
       }
 
       @case ('heading') {
-        <textarea
-          class="heading-input"
-          rows="1"
-          appAutosize
-          [attr.data-level]="block().level"
-          [value]="block().text"
-          (input)="onHeadingInput($event)"
-          [appFocus]="focusOnInit()"
-          (appFocusDone)="focused.emit()"
-          [placeholder]="'Heading ' + block().level + ' · type #'"
-          title="Type # through ###### at the start to change the heading level."
-          [attr.aria-label]="'Heading ' + block().level"
-        ></textarea>
+        <div class="field heading-field" [class.has-markup]="hasMarkup(block().text)">
+          <textarea
+            class="heading-input"
+            rows="1"
+            appAutosize
+            [attr.data-level]="block().level"
+            [value]="block().text"
+            (input)="onHeadingInput($event)"
+            (keydown)="onHeadingKeydown($event)"
+            [appFocus]="focusOnInit()"
+            (appFocusDone)="focused.emit()"
+            [placeholder]="'Heading ' + block().level + ' · type #'"
+            title="Type # through ###### at the start to change the heading level."
+            [attr.aria-label]="'Heading ' + block().level"
+          ></textarea>
+          @if (hasMarkup(block().text)) {
+            <div
+              class="field-preview heading-preview"
+              [attr.data-level]="block().level"
+              aria-hidden="true"
+            >
+              <app-markdown-inline [text]="block().text" />
+            </div>
+          }
+        </div>
       }
 
       @case ('list') {
@@ -78,18 +98,25 @@
               <span class="marker" [class.bullet]="!block().ordered" aria-hidden="true">{{
                 block().ordered ? i + 1 + '.' : ''
               }}</span>
-              <input
-                #itemInput
-                class="list-input"
-                type="text"
-                [value]="item"
-                (input)="onItemInput($event, i)"
-                (keydown)="onItemKeydown($event, i)"
-                [appFocus]="focusOnInit() && i === 0"
-                (appFocusDone)="focused.emit()"
-                placeholder="List item"
-                [attr.aria-label]="'List item ' + (i + 1)"
-              />
+              <div class="field list-field" [class.has-markup]="hasMarkup(item)">
+                <input
+                  #itemInput
+                  class="list-input"
+                  type="text"
+                  [value]="item"
+                  (input)="onItemInput($event, i)"
+                  (keydown)="onItemKeydown($event, i)"
+                  [appFocus]="focusOnInit() && i === 0"
+                  (appFocusDone)="focused.emit()"
+                  placeholder="List item"
+                  [attr.aria-label]="'List item ' + (i + 1)"
+                />
+                @if (hasMarkup(item)) {
+                  <div class="field-preview list-preview" aria-hidden="true">
+                    <app-markdown-inline [text]="item" />
+                  </div>
+                }
+              </div>
               <button
                 class="item-remove"
                 type="button"
@@ -125,6 +152,83 @@
               (focused)="onImageColumnFocused(i)"
             />
           }
+        </div>
+      }
+
+      @case ('code') {
+        <div class="code-block">
+          <div class="code-bar">
+            <span class="code-kind">
+              <app-icon name="code" [size]="12" />
+              Code
+            </span>
+            <input
+              class="code-language"
+              type="text"
+              [value]="block().language"
+              (input)="onCodeLanguage($event)"
+              placeholder="language"
+              aria-label="Code language"
+            />
+          </div>
+          <div class="code-editor">
+            <pre class="code-highlight" aria-hidden="true"><app-code-highlight
+              [code]="block().text"
+              [language]="block().language"
+            /></pre>
+            <textarea
+              class="code-input"
+              rows="1"
+              appAutosize
+              spellcheck="false"
+              [value]="block().text"
+              (input)="onText($event)"
+              [appFocus]="focusOnInit()"
+              (appFocusDone)="focused.emit()"
+              placeholder="Paste or type a snippet…"
+              aria-label="Code block"
+            ></textarea>
+          </div>
+        </div>
+      }
+
+      @case ('function') {
+        <div class="function-block" [class.math]="mathMode()">
+          <div class="function-bar">
+            <span class="function-kind">
+              <span class="function-mark" aria-hidden="true">ƒ</span>
+              Function
+            </span>
+            <button
+              class="math-toggle"
+              type="button"
+              [class.active]="mathMode()"
+              [attr.aria-pressed]="mathMode()"
+              (click)="toggleMath()"
+              title="Render this expression as LaTeX math"
+            >
+              TeX
+            </button>
+          </div>
+          <div class="function-editor" [class.math]="showMath()">
+            <textarea
+              class="function-input"
+              rows="1"
+              appAutosize
+              spellcheck="false"
+              [value]="block().text"
+              (input)="onText($event)"
+              [appFocus]="focusOnInit()"
+              (appFocusDone)="focused.emit()"
+              placeholder="functionName(args) or \frac{a}{b}"
+              aria-label="Function block"
+            ></textarea>
+            @if (showMath()) {
+              <div class="function-preview" aria-hidden="true">
+                <app-latex [text]="block().text" />
+              </div>
+            }
+          </div>
         </div>
       }
     }

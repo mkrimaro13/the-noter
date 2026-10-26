@@ -1,4 +1,4 @@
-export type BlockType = 'text' | 'heading' | 'list' | 'image';
+export type BlockType = 'text' | 'heading' | 'list' | 'image' | 'code' | 'function' | 'subnote';
 
 export const MAX_TEXT_COLUMNS = 4;
 export const MAX_HEADING_LEVEL = 6;
@@ -34,6 +34,8 @@ export interface NoteBlock {
   caption: string;
   /** Heading blocks: 1–6. */
   level: number;
+  /** Code blocks: an optional language label, such as `ts` or `sql`. */
+  language: string;
   /** Text blocks: the content of each column, including any hidden ones. */
   columns: string[];
   /** Image blocks: extra columns after the main image, including hidden ones. */
@@ -42,6 +44,8 @@ export interface NoteBlock {
   mainColumnType: ImageColumnType;
   /** Text/image blocks: how many columns are currently visible (1–4). */
   columnCount: number;
+  /** Sub-note blocks: the child note rendered inline. */
+  noteId: string;
 }
 
 export interface NoteMeta {
@@ -53,14 +57,30 @@ export interface NoteMeta {
 export interface Note {
   id: string;
   title: string;
+  /** Emoji or short text shown beside the title. */
+  icon: string;
+  /** Cover image data URL (or remote URL), or an empty string. */
+  cover: string;
+  /** Parent note id for nesting; null for a top-level note. */
+  parentId: string | null;
   metadata: NoteMeta[];
   blocks: NoteBlock[];
   createdAt: number;
   updatedAt: number;
 }
 
+/** One note in the nested sidebar tree. */
+export interface NoteTreeItem {
+  note: Note;
+  depth: number;
+  children: NoteTreeItem[];
+}
+
 export type BlockPatch = Partial<
-  Pick<NoteBlock, 'text' | 'items' | 'ordered' | 'src' | 'caption' | 'level' | 'mainColumnType'>
+  Pick<
+    NoteBlock,
+    'text' | 'items' | 'ordered' | 'src' | 'caption' | 'level' | 'language' | 'mainColumnType'
+  >
 >;
 
 export interface BlockMenuItem {
@@ -74,6 +94,9 @@ export const BLOCK_MENU: readonly BlockMenuItem[] = [
   { type: 'heading', label: 'Heading', hint: 'A section title' },
   { type: 'list', label: 'List', hint: 'Bulleted or numbered' },
   { type: 'image', label: 'Image', hint: 'Upload or link a picture' },
+  { type: 'code', label: 'Code', hint: 'A monospace snippet' },
+  { type: 'function', label: 'Function', hint: 'A signature or expression' },
+  { type: 'subnote', label: 'Sub-note', hint: 'A nested note, editable inline' },
 ];
 
 let sequence = 0;
@@ -96,10 +119,12 @@ export function createBlock(
     src: '',
     caption: '',
     level: 1,
+    language: '',
     columns: type === 'text' ? [''] : [],
     imageColumns: [],
     mainColumnType: 'image',
     columnCount: 1,
+    noteId: '',
     ...patch,
   };
 }
@@ -171,7 +196,7 @@ export function visibleImageColumnText(block: NoteBlock): string[] {
 }
 
 /** The writing held by a block, flattened so it can move between types. */
-function blockPlainText(block: NoteBlock): string {
+export function blockPlainText(block: NoteBlock): string {
   switch (block.type) {
     case 'text':
       return visibleTextColumns(block).join('\n');
@@ -184,6 +209,12 @@ function blockPlainText(block: NoteBlock): string {
         .map((column) => (column.type === 'text' ? column.text : column.caption))
         .filter((value) => value.length > 0)
         .join('\n');
+    case 'code':
+    case 'function':
+      return block.text;
+    case 'subnote':
+      // A sub-note keeps its writing in the child note, not in this block.
+      return '';
   }
 }
 
@@ -237,14 +268,36 @@ export function convertBlock(block: NoteBlock, type: BlockType): NoteBlock {
         columnCount: imageColumns.length > 0 ? 2 : 1,
       };
     }
+    case 'code':
+    case 'function': {
+      // `latex`/`plain` are function-block display hints, not code languages.
+      const language =
+        type === 'code' && block.language !== 'latex' && block.language !== 'plain'
+          ? block.language
+          : '';
+      return { ...block, type, text: content, language };
+    }
+    case 'subnote':
+      return {
+        ...block,
+        type,
+        text: '',
+        items: [],
+        columns: [],
+        imageColumns: [],
+        columnCount: 1,
+      };
   }
 }
 
-export function createNote(): Note {
+export function createNote(parentId: string | null = null): Note {
   const now = Date.now();
   return {
     id: uid('n'),
     title: '',
+    icon: '',
+    cover: '',
+    parentId,
     metadata: [],
     blocks: [createBlock('text')],
     createdAt: now,

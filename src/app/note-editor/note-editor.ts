@@ -10,8 +10,9 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { relativeTime, resolveTimeFunctions, wordCount } from '../format';
+import { blockCountLabel, relativeTime, resolveTimeFunctions, wordCount } from '../format';
 import { imageFileToDataUrl } from '../image';
+import { FenceShortcut, MarkdownBlockShortcut } from '../markdown';
 import {
   BLOCK_MENU,
   BlockPatch,
@@ -24,18 +25,38 @@ import {
   visibleTextColumns,
 } from '../models';
 import { NoteStore } from '../note-store';
+import { SubnoteBlock } from '../subnote-block/subnote-block';
 import { Focus } from '../ui/focus';
 import { Icon } from '../ui/icon';
 import { NoteBlock as NoteBlockEditor } from '../note-block/note-block';
 
+const NOTE_ICONS = [
+  '📝',
+  '📚',
+  '💡',
+  '🎯',
+  '🌱',
+  '☕',
+  '🧭',
+  '✨',
+  '🧪',
+  '🗂️',
+  '🔖',
+  '❤️',
+  '🌙',
+  '🎨',
+  '🧠',
+  '🏷️',
+];
+
 @Component({
   selector: 'app-note-editor',
-  imports: [NoteBlockEditor, Icon, Focus, CdkDropList],
+  imports: [NoteBlockEditor, SubnoteBlock, Icon, Focus, CdkDropList],
   templateUrl: './note-editor.html',
   styleUrl: './note-editor.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    '(document:keydown.escape)': 'closeMenu()',
+    '(document:keydown.escape)': 'closePopovers()',
     '(document:paste)': 'onPaste($event)',
   },
 })
@@ -45,13 +66,21 @@ export class NoteEditor {
   protected readonly store = inject(NoteStore);
   protected readonly blockMenu = BLOCK_MENU;
   protected readonly menuOpen = signal(false);
+  protected readonly iconMenuOpen = signal(false);
   protected readonly focusMetaId = signal<string | null>(null);
   protected readonly focusBlockId = signal<string | null>(null);
   protected readonly focusImageColumn = signal<{ blockId: string; index: number } | null>(null);
   protected readonly pasteError = signal<string | null>(null);
+  protected readonly coverError = signal<string | null>(null);
+  protected readonly iconChoices = NOTE_ICONS;
+
+  protected readonly ancestors = computed(() => this.store.parentChain(this.note()));
+  protected readonly subNotes = computed(() => this.store.childNotes(this.note().id));
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly addButton = viewChild<ElementRef<HTMLButtonElement>>('addButton');
+  private readonly coverPicker = viewChild<ElementRef<HTMLInputElement>>('coverPicker');
+  private readonly iconInput = viewChild<ElementRef<HTMLInputElement>>('iconInput');
   private pasteErrorTimer: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly words = computed(() => {
@@ -75,14 +104,98 @@ export class NoteEditor {
     effect(() => {
       this.noteId();
       this.menuOpen.set(false);
+      this.iconMenuOpen.set(false);
       this.focusMetaId.set(null);
       this.focusBlockId.set(null);
       this.focusImageColumn.set(null);
+      this.coverError.set(null);
     });
   }
 
   protected relative(timestamp: number): string {
     return relativeTime(timestamp);
+  }
+
+  protected displayTitle(note: Note): string {
+    return note.title.trim() || 'Untitled';
+  }
+
+  protected noteSubtitle(note: Note): string {
+    const blocks = note.blocks.length === 0 ? 'Empty' : blockCountLabel(note.blocks.length);
+    return `${blocks} · ${relativeTime(note.updatedAt)}`;
+  }
+
+  protected openNote(note: Note): void {
+    this.store.select(note.id);
+  }
+
+  protected addChildNote(): void {
+    this.store.createChildNote(this.note().id);
+  }
+
+  protected browseCover(): void {
+    this.coverPicker()?.nativeElement.click();
+  }
+
+  protected onCoverFile(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    void this.importCover(file);
+  }
+
+  protected onCoverDragOver(event: DragEvent): void {
+    event.preventDefault();
+  }
+
+  protected onCoverDrop(event: DragEvent): void {
+    event.preventDefault();
+    void this.importCover(event.dataTransfer?.files?.[0] ?? null);
+  }
+
+  protected removeCover(): void {
+    this.coverError.set(null);
+    this.store.setCover(this.note().id, '');
+  }
+
+  protected toggleIconMenu(): void {
+    const open = !this.iconMenuOpen();
+    this.iconMenuOpen.set(open);
+    if (open) {
+      setTimeout(() => this.iconInput()?.nativeElement.focus());
+    }
+  }
+
+  protected closeIconMenu(): void {
+    this.iconMenuOpen.set(false);
+  }
+
+  protected chooseIcon(icon: string): void {
+    this.store.setIcon(this.note().id, icon);
+    this.iconMenuOpen.set(false);
+  }
+
+  protected applyCustomIcon(): void {
+    const value = this.iconInput()?.nativeElement.value.trim() ?? '';
+    if (!value) return;
+    this.chooseIcon(value);
+  }
+
+  protected removeIcon(): void {
+    this.store.setIcon(this.note().id, '');
+    this.iconMenuOpen.set(false);
+  }
+
+  private async importCover(file: File | null): Promise<void> {
+    if (!file) return;
+
+    this.coverError.set(null);
+    try {
+      const cover = await imageFileToDataUrl(file, 2000);
+      this.store.setCover(this.note().id, cover);
+    } catch (error) {
+      this.coverError.set(error instanceof Error ? error.message : 'Could not read that image.');
+    }
   }
 
   protected onTitleInput(event: Event): void {
@@ -127,7 +240,11 @@ export class NoteEditor {
   }
 
   protected onBlockTypeChange(blockId: string, type: BlockType): void {
-    this.store.setBlockType(this.note().id, blockId, type);
+    if (type === 'subnote') {
+      this.store.convertBlockToSubnote(this.note().id, blockId);
+    } else {
+      this.store.setBlockType(this.note().id, blockId, type);
+    }
     this.focusBlockId.set(blockId);
   }
 
@@ -166,6 +283,23 @@ export class NoteEditor {
     }
   }
 
+  protected onHeadingSplit(blockId: string, split: { before: string; after: string }): void {
+    const block = this.store.splitHeadingBlock(this.note().id, blockId, split);
+    if (block) {
+      this.focusBlockId.set(block.id);
+    }
+  }
+
+  protected onFence(blockId: string, fence: FenceShortcut): void {
+    this.store.convertTextBlockToCode(this.note().id, blockId, fence);
+    this.focusBlockId.set(blockId);
+  }
+
+  protected onMarkdownShortcut(blockId: string, shortcut: MarkdownBlockShortcut): void {
+    this.store.applyBlockShortcut(this.note().id, blockId, shortcut);
+    this.focusBlockId.set(blockId);
+  }
+
   protected async onPaste(event: ClipboardEvent): Promise<void> {
     const target = event.target;
     if (!(target instanceof Node) || !this.host.nativeElement.contains(target)) return;
@@ -187,7 +321,9 @@ export class NoteEditor {
 
     if (sources.length === 0) return;
 
-    const targetBlock = this.blockFromTarget(target);
+    const blockTarget = this.blockFromTarget(target);
+    const targetBlock = blockTarget?.block ?? null;
+    const noteId = blockTarget?.noteId ?? this.noteContextFromTarget(target) ?? this.note().id;
     const columnIndex = this.imageColumnAt(target);
 
     // Pasting into an existing image column replaces only that column's image
@@ -199,7 +335,7 @@ export class NoteEditor {
 
       if (index === 0) {
         const shouldFocus = targetBlock.src === '' || targetBlock.mainColumnType !== 'image';
-        this.store.updateBlock(this.note().id, targetBlock.id, {
+        this.store.updateBlock(noteId, targetBlock.id, {
           src,
           caption: '',
           mainColumnType: 'image',
@@ -215,7 +351,7 @@ export class NoteEditor {
         const column = targetBlock.imageColumns[index - 1];
         const shouldFocus = !column || column.type !== 'image' || column.src === '';
 
-        this.store.updateImageColumn(this.note().id, targetBlock.id, index - 1, {
+        this.store.updateImageColumn(noteId, targetBlock.id, index - 1, {
           type: 'image',
           src,
           caption: '',
@@ -229,7 +365,7 @@ export class NoteEditor {
 
       if (rest.length > 0) {
         this.store.insertBlocks(
-          this.note().id,
+          noteId,
           targetBlock.id,
           rest.map((image) => createBlock('image', { src: image })),
         );
@@ -238,7 +374,7 @@ export class NoteEditor {
     }
 
     this.store.insertBlocks(
-      this.note().id,
+      noteId,
       targetBlock?.id ?? null,
       sources.map((src) => createBlock('image', { src })),
     );
@@ -250,12 +386,24 @@ export class NoteEditor {
     this.pasteErrorTimer = setTimeout(() => this.pasteError.set(null), 6000);
   }
 
-  private blockFromTarget(target: Node): NoteBlock | null {
+  private blockFromTarget(target: Node): { noteId: string; block: NoteBlock } | null {
     const element = target instanceof Element ? target : target.parentElement;
     const blockId = element?.closest('app-note-block')?.getAttribute('data-block-id');
     if (!blockId) return null;
 
-    return this.note().blocks.find((block) => block.id === blockId) ?? null;
+    for (const note of this.store.notes()) {
+      const block = note.blocks.find((item) => item.id === blockId);
+      if (block) return { noteId: note.id, block };
+    }
+
+    return null;
+  }
+
+  /** The note whose inline sub-note contains the target, if any. */
+  private noteContextFromTarget(target: Node): string | null {
+    const element = target instanceof Element ? target : target.parentElement;
+    const subnote = element?.closest<HTMLElement>('app-subnote-block[data-note-id]');
+    return subnote?.getAttribute('data-note-id') || null;
   }
 
   private imageColumnAt(target: Node): number | null {
@@ -285,6 +433,15 @@ export class NoteEditor {
   }
 
   protected addBlock(type: BlockType): void {
+    if (type === 'subnote') {
+      const block = this.store.addSubnoteBlock(this.note().id);
+      if (block) {
+        this.focusBlockId.set(block.id);
+      }
+      this.menuOpen.set(false);
+      return;
+    }
+
     const block = this.store.addBlock(this.note().id, type);
     this.focusBlockId.set(block.id);
     this.menuOpen.set(false);
@@ -299,6 +456,11 @@ export class NoteEditor {
     this.menuOpen.set(false);
     // Return focus to the trigger when the menu is dismissed.
     setTimeout(() => this.addButton()?.nativeElement.focus());
+  }
+
+  protected closePopovers(): void {
+    this.iconMenuOpen.set(false);
+    this.closeMenu();
   }
 }
 

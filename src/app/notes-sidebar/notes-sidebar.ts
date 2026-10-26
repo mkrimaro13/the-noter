@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  computed,
   effect,
   inject,
   input,
@@ -9,10 +10,17 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { Note } from '../models';
+import { Note, NoteTreeItem } from '../models';
 import { NoteStore } from '../note-store';
 import { blockCountLabel, relativeTime } from '../format';
 import { Icon } from '../ui/icon';
+
+interface SidebarRow {
+  note: Note;
+  depth: number;
+  hasChildren: boolean;
+  expanded: boolean;
+}
 
 @Component({
   selector: 'app-notes-sidebar',
@@ -32,6 +40,36 @@ export class NotesSidebar {
 
   protected readonly store = inject(NoteStore);
   protected readonly confirmingDelete = signal<string | null>(null);
+  protected readonly collapsedNotes = signal<ReadonlySet<string>>(new Set());
+
+  /**
+   * A flat, depth-first list of sidebar rows. Search switches to a simple flat
+   * result list so matches inside nested notes are never hidden behind a
+   * collapsed parent.
+   */
+  protected readonly rows = computed<SidebarRow[]>(() => {
+    if (this.store.query().trim()) {
+      return this.store
+        .filteredNotes()
+        .map((note) => ({ note, depth: 0, hasChildren: false, expanded: false }));
+    }
+
+    const collapsed = this.collapsedNotes();
+    const rows: SidebarRow[] = [];
+    const visit = (items: NoteTreeItem[], depth: number) => {
+      for (const item of items) {
+        const hasChildren = item.children.length > 0;
+        const expanded = !collapsed.has(item.note.id);
+        rows.push({ note: item.note, depth, hasChildren, expanded });
+        if (hasChildren && expanded) {
+          visit(item.children, depth + 1);
+        }
+      }
+    };
+
+    visit(this.store.noteTree(), 0);
+    return rows;
+  });
 
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   private readonly expandButton = viewChild<ElementRef<HTMLButtonElement>>('expandButton');
@@ -48,6 +86,35 @@ export class NotesSidebar {
     this.navigated.emit();
   }
 
+  protected createChild(note: Note, event: Event): void {
+    event.stopPropagation();
+    this.reveal(note.id);
+    this.store.createChildNote(note.id);
+    this.navigated.emit();
+  }
+
+  protected toggleChildren(note: Note, event: Event): void {
+    event.stopPropagation();
+    this.collapsedNotes.update((collapsed) => {
+      const next = new Set(collapsed);
+      if (next.has(note.id)) {
+        next.delete(note.id);
+      } else {
+        next.add(note.id);
+      }
+      return next;
+    });
+  }
+
+  private reveal(noteId: string): void {
+    this.collapsedNotes.update((collapsed) => {
+      if (!collapsed.has(noteId)) return collapsed;
+      const next = new Set(collapsed);
+      next.delete(noteId);
+      return next;
+    });
+  }
+
   protected onQuery(event: Event): void {
     this.confirmingDelete.set(null);
     this.store.query.set((event.target as HTMLInputElement).value);
@@ -59,6 +126,9 @@ export class NotesSidebar {
   }
 
   protected select(note: Note): void {
+    for (const parent of this.store.parentChain(note)) {
+      this.reveal(parent.id);
+    }
     this.store.select(note.id);
     this.navigated.emit();
   }

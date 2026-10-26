@@ -9,12 +9,19 @@ export type IconName =
   | 'heading'
   | 'list'
   | 'image'
+  | 'code'
+  | 'function'
+  | 'subnote'
   | 'x'
   | 'check'
   | 'menu'
   | 'note'
   | 'upload'
   | 'columns'
+  | 'smile'
+  | 'chevron-right'
+  | 'chevron-down'
+  | 'corner-down-right'
   | 'logo'
   | 'panel-left-close'
   | 'panel-left-open'
@@ -72,11 +79,39 @@ export type IconName =
           <circle cx="8.5" cy="9.5" r="1.5" />
           <path d="m21 16-5-5L5 20" />
         }
+        @case ('code') {
+          <path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14" />
+        }
+        @case ('function') {
+          <path d="M8 5h8M11 5c-1.7 0-2.2 1-2.5 2.7L7.3 16c-.4 2.6-1.3 3.5-3.1 3.5" />
+          <path d="M7 10h6" />
+        }
+        @case ('subnote') {
+          <path d="M5 4h8l3 3v13H5z" />
+          <path d="M13 4v4h4M8 12h5M8 15h4" />
+          <path d="M16 8h3v12H8v-2" />
+        }
         @case ('x') {
           <path d="M6 6l12 12M18 6 6 18" />
         }
         @case ('check') {
           <path d="m5 12 5 5L20 7" />
+        }
+        @case ('smile') {
+          <circle cx="12" cy="12" r="9" />
+          <path d="M8.5 14.5a4.5 4.5 0 0 0 7 0" />
+          <circle cx="9" cy="10" r="0.85" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="10" r="0.85" fill="currentColor" stroke="none" />
+        }
+        @case ('chevron-right') {
+          <path d="m9 6 6 6-6 6" />
+        }
+        @case ('chevron-down') {
+          <path d="m6 9 6 6 6-6" />
+        }
+        @case ('corner-down-right') {
+          <path d="M5 5v7a3 3 0 0 0 3 3h11" />
+          <path d="m15 11 4 4-4 4" />
         }
         @case ('menu') {
           <path d="M4 7h16M4 12h16M4 17h16" />

@@ -74,29 +74,52 @@
     </div>
 
     <nav class="note-list" aria-label="Notes">
-      @for (note of store.filteredNotes(); track note.id) {
+      @for (row of rows(); track row.note.id) {
         <div
           class="note-row"
-          [class.active]="note.id === store.selectedId()"
-          [class.confirming]="confirmingDelete() === note.id"
+          [class.active]="row.note.id === store.selectedId()"
+          [class.confirming]="confirmingDelete() === row.note.id"
+          [class.has-children]="row.hasChildren"
+          [class.nested]="row.depth > 0"
+          [style.--depth]="row.depth + ''"
         >
+          @if (row.hasChildren) {
+            <button
+              class="note-toggle"
+              type="button"
+              (click)="toggleChildren(row.note, $event)"
+              [attr.aria-label]="
+                (row.expanded ? 'Collapse' : 'Expand') + ' sub-notes of ' + displayTitle(row.note)
+              "
+              [attr.aria-expanded]="row.expanded"
+              [title]="row.expanded ? 'Hide sub-notes' : 'Show sub-notes'"
+            >
+              <app-icon [name]="row.expanded ? 'chevron-down' : 'chevron-right'" [size]="12" />
+            </button>
+          }
+
           <button
             class="note-main"
             type="button"
-            (click)="select(note)"
-            [attr.aria-current]="note.id === store.selectedId() ? 'true' : null"
+            (click)="select(row.note)"
+            [attr.aria-current]="row.note.id === store.selectedId() ? 'true' : null"
           >
-            <span class="note-title">{{ displayTitle(note) }}</span>
-            <span class="note-sub">{{ subtitle(note) }}</span>
+            <span class="note-title-row">
+              @if (row.note.icon) {
+                <span class="note-emoji" aria-hidden="true">{{ row.note.icon }}</span>
+              }
+              <span class="note-title">{{ displayTitle(row.note) }}</span>
+            </span>
+            <span class="note-sub">{{ subtitle(row.note) }}</span>
           </button>
 
-          @if (confirmingDelete() === note.id) {
+          @if (confirmingDelete() === row.note.id) {
             <div class="delete-confirm">
               <span>Delete?</span>
               <button
                 class="confirm-action danger"
                 type="button"
-                (click)="confirmDelete(note)"
+                (click)="confirmDelete(row.note)"
                 aria-label="Confirm delete"
                 title="Delete note"
               >
@@ -113,15 +136,26 @@
               </button>
             </div>
           } @else {
-            <button
-              class="note-delete"
-              type="button"
-              (click)="askDelete(note)"
-              [attr.aria-label]="'Delete ' + displayTitle(note)"
-              title="Delete note"
-            >
-              <app-icon name="trash" [size]="13" />
-            </button>
+            <div class="note-actions">
+              <button
+                class="note-nest"
+                type="button"
+                (click)="createChild(row.note, $event)"
+                [attr.aria-label]="'Add sub-note under ' + displayTitle(row.note)"
+                title="Add sub-note"
+              >
+                <app-icon name="corner-down-right" [size]="13" />
+              </button>
+              <button
+                class="note-delete"
+                type="button"
+                (click)="askDelete(row.note)"
+                [attr.aria-label]="'Delete ' + displayTitle(row.note)"
+                title="Delete note"
+              >
+                <app-icon name="trash" [size]="13" />
+              </button>
+            </div>
           }
         </div>
       } @empty {
@@ -142,6 +176,7 @@
         [class.error]="store.storageError()"
         [attr.title]="store.storageError()"
       >
+        <app-icon class="save-icon" name="logo" [size]="12" />
         <span class="dot"></span>
         {{ store.storageError() ? 'Not saved' : 'Saved locally' }}
       </span>

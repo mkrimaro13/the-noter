@@ -13,6 +13,15 @@ import {
   viewChildren,
 } from '@angular/core';
 import {
+  FenceShortcut,
+  MarkdownBlockShortcut,
+  hasInlineMarkup,
+  readBlockShortcut,
+  readFence,
+  readFenceLine,
+} from '../markdown';
+import { looksLikeLatex } from '../latex';
+import {
   BLOCK_MENU,
   BlockPatch,
   BlockType,
@@ -25,12 +34,24 @@ import {
 } from '../models';
 import { Autosize } from '../ui/autosize';
 import { Focus } from '../ui/focus';
+import { CodeHighlight } from '../ui/highlight';
 import { Icon } from '../ui/icon';
+import { Latex } from '../ui/latex';
+import { MarkdownInline } from '../ui/markdown-inline';
 import { ImageColumn } from './image-column/image-column';
 
 @Component({
   selector: 'app-note-block',
-  imports: [Icon, Autosize, Focus, CdkDragHandle, ImageColumn],
+  imports: [
+    Icon,
+    Autosize,
+    Focus,
+    CodeHighlight,
+    Latex,
+    MarkdownInline,
+    CdkDragHandle,
+    ImageColumn,
+  ],
   templateUrl: './note-block.html',
   styleUrl: './note-block.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -59,6 +80,9 @@ export class NoteBlock {
   readonly columnCountChanged = output<number>();
   readonly imageColumnChanged = output<{ index: number; patch: ImageColumnPatch }>();
   readonly split = output<{ column: number; before: string; after: string }>();
+  readonly headingSplit = output<{ before: string; after: string }>();
+  readonly fence = output<FenceShortcut>();
+  readonly shortcut = output<MarkdownBlockShortcut>();
   readonly typeChanged = output<BlockType>();
   readonly removed = output<void>();
   readonly move = output<number>();
@@ -76,6 +100,7 @@ export class NoteBlock {
   protected readonly typeMenuOpen = signal(false);
   protected readonly visibleColumns = computed(() => visibleTextColumns(this.block()));
   protected readonly imageColumns = computed(() => visibleImageColumns(this.block()));
+  protected readonly hasMarkup = hasInlineMarkup;
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly itemInputs = viewChildren<ElementRef<HTMLInputElement>>('itemInput');
@@ -141,10 +166,23 @@ export class NoteBlock {
   }
 
   protected onColumnInput(event: Event, index: number): void {
-    this.columnChanged.emit({
-      index,
-      value: (event.target as HTMLTextAreaElement).value,
-    });
+    const value = (event.target as HTMLTextAreaElement).value;
+
+    // A pasted or Shift+Entered fence promotes the whole single-column block.
+    const fence = readFence(value);
+    if (fence && index === 0 && this.visibleColumns().length === 1) {
+      this.fence.emit(fence);
+      return;
+    }
+
+    // Markdown block prefixes only make sense for a single writing column.
+    const shortcut = readBlockShortcut(value);
+    if (shortcut && index === 0 && this.visibleColumns().length === 1) {
+      this.shortcut.emit(shortcut);
+      return;
+    }
+
+    this.columnChanged.emit({ index, value });
   }
 
   protected onColumnKeydown(event: KeyboardEvent, index: number): void {
@@ -155,6 +193,13 @@ export class NoteBlock {
     if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
 
     const textarea = event.target as HTMLTextAreaElement;
+    const fence = readFenceLine(textarea.value);
+    if (fence && index === 0 && this.visibleColumns().length === 1) {
+      event.preventDefault();
+      this.fence.emit(fence);
+      return;
+    }
+
     const start = textarea.selectionStart ?? textarea.value.length;
     const end = textarea.selectionEnd ?? start;
 
@@ -164,6 +209,51 @@ export class NoteBlock {
       before: textarea.value.slice(0, start),
       after: textarea.value.slice(end),
     });
+  }
+
+  /**
+   * Plain Enter in a heading leaves the heading behind and starts a new text
+   * block, matching the rest of the editor. Modifier + Enter still inserts a
+   * soft line break inside the heading.
+   */
+  protected onHeadingKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter' || event.isComposing) return;
+    if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+
+    const textarea = event.target as HTMLTextAreaElement;
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? start;
+
+    event.preventDefault();
+    this.headingSplit.emit({
+      before: textarea.value.slice(0, start),
+      after: textarea.value.slice(end),
+    });
+  }
+
+  protected onCodeLanguage(event: Event): void {
+    this.changed.emit({ language: (event.target as HTMLInputElement).value });
+  }
+
+  /**
+   * Function blocks render as LaTeX when their label says so, when the fence
+   * chose math, or when the writing itself looks like an expression. An
+   * explicit `plain` label lets the author turn that detection off.
+   */
+  protected mathMode(): boolean {
+    const block = this.block();
+    if (block.type !== 'function') return false;
+    if (block.language === 'latex') return true;
+    if (block.language === 'plain') return false;
+    return looksLikeLatex(block.text);
+  }
+
+  protected showMath(): boolean {
+    return this.block().text.trim().length > 0 && this.mathMode();
+  }
+
+  protected toggleMath(): void {
+    this.changed.emit({ language: this.mathMode() ? 'plain' : 'latex' });
   }
 
   protected toggleColumnsMenu(): void {

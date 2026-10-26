@@ -284,18 +284,61 @@
   background: var(--accent);
 }
 
+.note-toggle {
+  position: absolute;
+  top: 50%;
+  left: calc(4px + var(--depth, 0) * 16px);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: var(--muted);
+  transform: translateY(-50%);
+  transition:
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.note-toggle:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.note-toggle:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: -1px;
+}
+
 .note-main {
   display: flex;
   flex-direction: column;
   gap: 1px;
   width: 100%;
-  padding: 9px 34px 9px 11px;
+  /* Keep a gutter for disclosure controls at every depth so titles from
+     different branches never line up by accident. */
+  padding: 9px 62px 9px calc(27px + var(--depth, 0) * 16px);
   border-radius: 8px;
   text-align: left;
 }
 
 .note-row.confirming .note-main {
   padding-right: 98px;
+}
+
+.note-title-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.note-emoji {
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1;
 }
 
 .note-title {
@@ -319,42 +362,50 @@
   white-space: nowrap;
 }
 
-.note-delete {
+.note-actions {
   position: absolute;
   top: 50%;
   right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 140ms ease;
+}
+
+.note-row:hover .note-actions,
+.note-row:focus-within .note-actions,
+.note-row.active .note-actions {
+  opacity: 1;
+}
+
+.note-nest,
+.note-delete {
   display: grid;
   place-items: center;
   width: 24px;
   height: 24px;
   border-radius: 6px;
   color: var(--muted);
-  opacity: 0;
-  transform: translateY(-50%);
   transition:
-    opacity 140ms ease,
     color 140ms ease,
     background 140ms ease;
 }
 
-.note-row:hover .note-delete,
-.note-row:focus-within .note-delete {
-  opacity: 0.75;
+.note-nest:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .note-delete:hover {
   color: var(--danger);
   background: var(--danger-soft);
-  opacity: 1;
-}
-
-.note-row.active .note-delete {
-  opacity: 0.55;
 }
 
 @media (hover: none) {
-  .note-delete {
-    opacity: 0.5;
+  .note-actions {
+    opacity: 0.6;
   }
 }
 
@@ -433,10 +484,18 @@
     background 140ms ease;
 }
 
+.save-icon {
+  color: var(--accent);
+}
+
 .save-state.error {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 22%, var(--line-soft));
   background: color-mix(in srgb, var(--danger-soft) 55%, var(--surface));
+}
+
+.save-state.error .save-icon {
+  color: var(--danger);
 }
 
 .dot {

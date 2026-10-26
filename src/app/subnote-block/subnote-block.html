@@ -1,0 +1,145 @@
+<div class="subnote-block" [attr.data-depth]="depth()">
+  <div class="gutter">
+    <button
+      class="handle"
+      type="button"
+      cdkDragHandle
+      (keydown)="onHandleKeydown($event)"
+      [attr.aria-label]="
+        'Reorder sub-note block, position ' +
+        (index() + 1) +
+        ' of ' +
+        total() +
+        '. Use arrow up or down to move it.'
+      "
+      title="Drag to reorder · ↑ ↓"
+    >
+      <app-icon name="grip" [size]="14" />
+    </button>
+  </div>
+
+  <div class="subnote-content">
+    @if (child(); as child) {
+      <div class="subnote-head">
+        <span class="subnote-mark" aria-hidden="true">{{ child.icon || '↳' }}</span>
+        <input
+          #titleInput
+          class="subnote-title"
+          type="text"
+          [value]="child.title"
+          (input)="onTitleInput($event)"
+          placeholder="Untitled sub-note"
+          aria-label="Sub-note title"
+        />
+        <button
+          class="subnote-open"
+          type="button"
+          (click)="openNote()"
+          [attr.aria-label]="'Open sub-note ' + (child.title.trim() || 'Untitled')"
+          title="Open this sub-note in the editor"
+        >
+          <app-icon name="corner-down-right" [size]="12" />
+          Open
+        </button>
+      </div>
+
+      <div
+        class="subnote-blocks"
+        cdkDropList
+        [cdkDropListData]="child.blocks"
+        (cdkDropListDropped)="onDrop($event)"
+      >
+        @for (childBlock of child.blocks; track childBlock.id; let ci = $index) {
+          @if (childBlock.type === 'subnote') {
+            <app-subnote-block
+              cdkDragLockAxis="y"
+              [attr.data-block-id]="childBlock.id"
+              [block]="childBlock"
+              [index]="ci"
+              [total]="child.blocks.length"
+              [depth]="depth() + 1"
+              [focusOnInit]="focusBlockId() === childBlock.id"
+              (removed)="removeBlock(childBlock.id)"
+              (move)="moveBlock(ci, $event)"
+              (focused)="onBlockFocused()"
+            />
+          } @else {
+            <app-note-block
+              cdkDragLockAxis="y"
+              [attr.data-block-id]="childBlock.id"
+              [block]="childBlock"
+              [index]="ci"
+              [total]="child.blocks.length"
+              [focusOnInit]="focusBlockId() === childBlock.id"
+              (changed)="onBlockChange(childBlock.id, $event)"
+              (columnChanged)="onColumnChange(childBlock.id, $event)"
+              (columnCountChanged)="onColumnCountChange(childBlock.id, $event)"
+              (imageColumnChanged)="onImageColumnChange(childBlock.id, $event)"
+              (typeChanged)="onBlockTypeChange(childBlock.id, $event)"
+              (split)="onSplitBlock(childBlock.id, $event)"
+              (headingSplit)="onHeadingSplit(childBlock.id, $event)"
+              (fence)="onFence(childBlock.id, $event)"
+              (shortcut)="onMarkdownShortcut(childBlock.id, $event)"
+              (removed)="removeBlock(childBlock.id)"
+              (move)="moveBlock(ci, $event)"
+              (focused)="onBlockFocused()"
+            />
+          }
+        }
+      </div>
+
+      <div class="subnote-adder">
+        <button
+          #addButton
+          class="subnote-add-block"
+          type="button"
+          (click)="toggleMenu()"
+          [attr.aria-expanded]="menuOpen()"
+          aria-haspopup="menu"
+        >
+          <app-icon name="plus" [size]="12" />
+          Add block
+        </button>
+
+        @if (menuOpen()) {
+          <div class="menu-backdrop" (click)="closeMenu()" aria-hidden="true"></div>
+          <div class="subnote-menu" role="menu" aria-label="Add block to sub-note">
+            @for (item of blockMenu; track item.type) {
+              <button
+                type="button"
+                role="menuitem"
+                [appFocus]="menuOpen() && item.type === 'text'"
+                (click)="addBlock(item.type)"
+              >
+                <span class="menu-icon">
+                  <app-icon [name]="item.type" [size]="14" />
+                </span>
+                <span class="menu-copy">
+                  <span class="menu-label">{{ item.label }}</span>
+                  <span class="menu-hint">{{ item.hint }}</span>
+                </span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="subnote-missing" role="status">
+        <span>This sub-note no longer exists.</span>
+        <button type="button" (click)="removed.emit()">Remove block</button>
+      </div>
+    }
+  </div>
+
+  <div class="subnote-actions">
+    <button
+      class="subnote-remove"
+      type="button"
+      (click)="removed.emit()"
+      aria-label="Remove sub-note block"
+      title="Remove sub-note block"
+    >
+      <app-icon name="trash" [size]="13" />
+    </button>
+  </div>
+</div>

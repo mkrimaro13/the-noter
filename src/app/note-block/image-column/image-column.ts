@@ -9,14 +9,16 @@ import {
   viewChild,
 } from '@angular/core';
 import { imageFileToDataUrl } from '../../image';
+import { hasInlineMarkup } from '../../markdown';
 import { ImageColumnPatch, ImageColumnType, VisibleImageColumn } from '../../models';
 import { Autosize } from '../../ui/autosize';
 import { Focus } from '../../ui/focus';
 import { Icon } from '../../ui/icon';
+import { MarkdownInline } from '../../ui/markdown-inline';
 
 @Component({
   selector: 'app-image-column',
-  imports: [Autosize, Focus, Icon],
+  imports: [Autosize, Focus, Icon, MarkdownInline],
   templateUrl: './image-column.html',
   styleUrl: './image-column.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,6 +39,7 @@ export class ImageColumn {
   protected readonly imageError = signal<string | null>(null);
   protected readonly imageFailed = signal(false);
   protected readonly dragOver = signal(false);
+  protected readonly hasMarkup = hasInlineMarkup;
 
   private readonly filePicker = viewChild<ElementRef<HTMLInputElement>>('filePicker');
 
@@ -105,6 +108,16 @@ export class ImageColumn {
   protected clearImage(): void {
     this.imageFailed.set(false);
     this.changed.emit({ src: '', caption: '' });
+  }
+
+  /**
+   * Removes just the picture. The block (or column) and its caption stay in
+   * place, and the drop zone returns so another image can be added.
+   */
+  protected removeImage(): void {
+    this.imageFailed.set(false);
+    this.imageError.set(null);
+    this.changed.emit({ src: '' });
   }
 
   protected browse(): void {
