@@ -1,0 +1,153 @@
+<aside class="sidebar" [class.collapsed]="collapsed()" id="notes-sidebar">
+  <div class="collapsed-rail">
+    <button
+      class="rail-logo"
+      type="button"
+      (click)="expand.emit()"
+      title="Show notes"
+      aria-label="Show notes sidebar"
+    >
+      <app-icon name="logo" [size]="24" />
+    </button>
+    <span class="rail-divider" aria-hidden="true"></span>
+    <button
+      #expandButton
+      class="rail-expand"
+      type="button"
+      (click)="expand.emit()"
+      title="Show notes"
+      aria-label="Show notes sidebar"
+      aria-controls="notes-sidebar"
+      aria-expanded="false"
+    >
+      <app-icon name="panel-left-open" [size]="16" />
+    </button>
+  </div>
+
+  <div class="sidebar-full">
+    <div class="brand-row">
+      <span class="brand">The Noter<span class="brand-dot">.</span></span>
+      <div class="brand-actions">
+        <button
+          class="new-note"
+          type="button"
+          (click)="createNote()"
+          title="New note"
+          aria-label="New note"
+        >
+          <app-icon name="plus" [size]="17" />
+        </button>
+        <button
+          class="brand-collapse"
+          type="button"
+          (click)="collapse.emit()"
+          title="Hide notes"
+          aria-label="Hide notes sidebar"
+          aria-controls="notes-sidebar"
+          aria-expanded="true"
+        >
+          <app-icon name="panel-left-close" [size]="16" />
+        </button>
+      </div>
+    </div>
+
+    <div class="search">
+      <app-icon class="search-icon" name="search" [size]="14" />
+      <input
+        #searchInput
+        type="search"
+        placeholder="Search notes"
+        aria-label="Search notes"
+        [value]="store.query()"
+        (input)="onQuery($event)"
+      />
+      @if (store.query()) {
+        <button class="search-clear" type="button" (click)="clearQuery()" aria-label="Clear search">
+          <app-icon name="x" [size]="12" />
+        </button>
+      }
+    </div>
+
+    <div class="list-header">
+      <span>Notes</span>
+      <span class="count">{{ store.total() }}</span>
+    </div>
+
+    <nav class="note-list" aria-label="Notes">
+      @for (note of store.filteredNotes(); track note.id) {
+        <div
+          class="note-row"
+          [class.active]="note.id === store.selectedId()"
+          [class.confirming]="confirmingDelete() === note.id"
+        >
+          <button
+            class="note-main"
+            type="button"
+            (click)="select(note)"
+            [attr.aria-current]="note.id === store.selectedId() ? 'true' : null"
+          >
+            <span class="note-title">{{ displayTitle(note) }}</span>
+            <span class="note-sub">{{ subtitle(note) }}</span>
+          </button>
+
+          @if (confirmingDelete() === note.id) {
+            <div class="delete-confirm">
+              <span>Delete?</span>
+              <button
+                class="confirm-action danger"
+                type="button"
+                (click)="confirmDelete(note)"
+                aria-label="Confirm delete"
+                title="Delete note"
+              >
+                <app-icon name="check" [size]="12" />
+              </button>
+              <button
+                class="confirm-action"
+                type="button"
+                (click)="cancelConfirm()"
+                aria-label="Cancel delete"
+                title="Cancel"
+              >
+                <app-icon name="x" [size]="12" />
+              </button>
+            </div>
+          } @else {
+            <button
+              class="note-delete"
+              type="button"
+              (click)="askDelete(note)"
+              [attr.aria-label]="'Delete ' + displayTitle(note)"
+              title="Delete note"
+            >
+              <app-icon name="trash" [size]="13" />
+            </button>
+          }
+        </div>
+      } @empty {
+        <p class="empty-list">
+          @if (store.query()) {
+            No notes match “{{ store.query() }}”.
+          } @else {
+            Your notes will live here.
+          }
+        </p>
+      }
+    </nav>
+
+    <footer class="sidebar-footer">
+      <span
+        class="save-state"
+        aria-live="polite"
+        [class.error]="store.storageError()"
+        [attr.title]="store.storageError()"
+      >
+        <span class="dot"></span>
+        {{ store.storageError() ? 'Not saved' : 'Saved locally' }}
+      </span>
+      <span class="footer-count">{{
+        store.total() === 1 ? '1 note' : store.total() + ' notes'
+      }}</span>
+    </footer>
+  </div>
+</aside>

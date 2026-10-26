@@ -1,0 +1,95 @@
+<div class="image-column" [class.fill]="fill()">
+  <div class="column-toolbar">
+    <span class="column-name">Column {{ index() + 1 }}</span>
+    <div class="column-types" role="group" [attr.aria-label]="'Column ' + (index() + 1) + ' type'">
+      <button
+        type="button"
+        [attr.aria-pressed]="column().type === 'text'"
+        (click)="setType('text')"
+        title="Write text in this column"
+      >
+        Text
+      </button>
+      <button
+        type="button"
+        [attr.aria-pressed]="column().type === 'image'"
+        (click)="setType('image')"
+        title="Show an image in this column"
+      >
+        Image
+      </button>
+    </div>
+  </div>
+
+  @if (column().type === 'text') {
+    <textarea
+      class="column-text"
+      rows="4"
+      appAutosize
+      [value]="column().text"
+      (input)="onText($event)"
+      [appFocus]="focusOnInit()"
+      (appFocusDone)="focused.emit()"
+      [placeholder]="'Write in column ' + (index() + 1) + '…'"
+      [attr.aria-label]="'Image block, text column ' + (index() + 1)"
+    ></textarea>
+  } @else if (column().src) {
+    <figure class="figure">
+      @if (imageFailed()) {
+        <div class="image-broken">
+          <p>This image couldn’t be loaded.</p>
+          <button class="text-button" type="button" (click)="clearImage()">Choose another</button>
+        </div>
+      } @else {
+        <img
+          [src]="column().src"
+          [alt]="column().caption || 'Note image'"
+          (error)="onImageError()"
+        />
+      }
+      @if (!imageFailed()) {
+        <input
+          class="caption"
+          type="text"
+          [value]="column().caption"
+          (input)="onCaption($event)"
+          [appFocus]="focusOnInit()"
+          (appFocusDone)="focused.emit()"
+          placeholder="Add a caption…"
+          [attr.aria-label]="
+            column().main ? 'Image caption' : 'Image caption, column ' + (index() + 1)
+          "
+        />
+      }
+    </figure>
+  } @else {
+    <div
+      class="image-drop"
+      [class.over]="dragOver()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave()"
+      (drop)="onDrop($event)"
+    >
+      <div class="image-drop-icon">
+        <app-icon name="image" [size]="20" />
+      </div>
+      <p class="image-drop-text">
+        Drop an image here, paste one, or
+        <button class="text-button" type="button" (click)="browse()">browse</button>
+      </p>
+      <input #filePicker type="file" accept="image/*" hidden (change)="onFileInput($event)" />
+      <input
+        class="image-url"
+        type="url"
+        placeholder="…or paste an image URL and press Enter"
+        (keydown)="onUrlKeydown($event)"
+        [appFocus]="focusOnInit()"
+        (appFocusDone)="focused.emit()"
+        [attr.aria-label]="column().main ? 'Image URL' : 'Image URL, column ' + (index() + 1)"
+      />
+      @if (imageError()) {
+        <p class="image-error" role="alert">{{ imageError() }}</p>
+      }
+    </div>
+  }
+</div>

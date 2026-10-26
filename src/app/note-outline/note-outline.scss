@@ -1,0 +1,154 @@
+:host {
+  display: block;
+  min-height: 0;
+  height: 100dvh;
+}
+
+.outline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 34px 18px 48px 22px;
+  border-left: 1px solid var(--line-soft);
+  background: var(--paper);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.outline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.outline-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.outline-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.outline-collapse {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: -4px -4px -4px 0;
+  border-radius: 6px;
+  color: var(--muted);
+  transition:
+    color 140ms ease,
+    background 140ms ease;
+}
+
+.outline-collapse:hover {
+  color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.outline-collapse:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 1px;
+}
+
+.outline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.outline-link {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding-top: 4px;
+  padding-right: 4px;
+  padding-bottom: 4px;
+  border-radius: 4px;
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  letter-spacing: 0.003em;
+  line-height: 1.45;
+  text-align: left;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.outline-link[data-level='1'] {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.outline-link[data-level='2'] {
+  color: var(--ink-soft);
+}
+
+.outline-link[data-level='3'],
+.outline-link[data-level='4'],
+.outline-link[data-level='5'],
+.outline-link[data-level='6'] {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.outline-link:hover,
+.outline-link:focus-visible {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+
+.outline-link:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 1px;
+}
+
+.outline-arrow {
+  flex: none;
+  color: var(--muted);
+  font-size: 9.5px;
+  opacity: 0.5;
+  transition:
+    color 120ms ease,
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.outline-link:hover .outline-arrow,
+.outline-link:focus-visible .outline-arrow {
+  color: var(--accent);
+  opacity: 1;
+  transform: translateX(1px);
+}
+
+.outline-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-empty {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.005em;
+  line-height: 1.6;
+}

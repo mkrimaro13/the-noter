@@ -1,0 +1,223 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.image-column {
+  min-width: 0;
+}
+
+.column-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.column-name {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.column-types {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--paper);
+}
+
+.column-types button {
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+  text-transform: none;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.column-types button:hover {
+  color: var(--ink);
+}
+
+.column-types button[aria-pressed='true'] {
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(20, 18, 14, 0.08);
+}
+
+.column-types button:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 1px;
+}
+
+.column-text {
+  display: block;
+  width: 100%;
+  min-height: 140px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 16.5px;
+  letter-spacing: -0.003em;
+  line-height: 1.68;
+  outline: none;
+  overflow: hidden;
+  resize: none;
+}
+
+.figure {
+  margin: 6px 0 8px;
+}
+
+.figure img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 560px;
+  height: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--paper);
+}
+
+.fill .figure img {
+  width: 100%;
+}
+
+.caption {
+  width: 100%;
+  margin-top: 7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+.image-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 26px 20px 20px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  text-align: center;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.fill .image-drop {
+  padding: 20px 12px 16px;
+}
+
+.image-drop.over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.image-drop-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line-soft);
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--muted);
+}
+
+.image-drop-text {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.text-button {
+  color: var(--accent);
+  font-size: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.text-button:hover {
+  color: var(--ink);
+}
+
+.image-url {
+  width: min(100%, 320px);
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  text-align: center;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.image-url:hover {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.image-url:focus {
+  border-color: var(--accent-line);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.image-error {
+  color: var(--danger);
+  font-size: 10.5px;
+}
+
+.image-broken {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 1080px) {
+  .column-text {
+    min-height: 90px;
+  }
+}

@@ -1,0 +1,146 @@
+<article class="editor">
+  <h1 class="visually-hidden">{{ note().title.trim() || 'Untitled note' }}</h1>
+
+  <header class="note-header">
+    <div class="topbar">
+      <span>Edited {{ relative(note().updatedAt) }}</span>
+      @if (words() > 0) {
+        <span class="word-count">{{ words() }} {{ words() === 1 ? 'word' : 'words' }}</span>
+      }
+    </div>
+
+    <input
+      class="title"
+      type="text"
+      placeholder="Untitled note"
+      aria-label="Note title"
+      [value]="note().title"
+      (input)="onTitleInput($event)"
+      [appFocus]="store.pendingTitleFocus() === note().id"
+      (appFocusDone)="store.clearTitleFocus()"
+    />
+
+    <section class="metadata" aria-label="Note metadata">
+      @for (meta of note().metadata; track meta.id; let mi = $index) {
+        <div class="meta-row">
+          <input
+            class="meta-key"
+            type="text"
+            placeholder="label"
+            [attr.aria-label]="'Metadata label ' + (mi + 1)"
+            [value]="meta.key"
+            (input)="updateMetaKey(meta.id, $event)"
+            [appFocus]="focusMetaId() === meta.id"
+            (appFocusDone)="focusMetaId.set(null)"
+          />
+          <input
+            class="meta-value"
+            type="text"
+            placeholder="value · now()"
+            title="Time helpers: now(), today(), time(), or now(YYYY-MM-DD HH:mm). Press Enter or leave the field to resolve."
+            [attr.aria-label]="'Metadata value ' + (mi + 1)"
+            [value]="meta.value"
+            (input)="updateMetaValue(meta.id, $event)"
+            (keydown.enter)="commitMetaValue(meta.id, $event)"
+            (blur)="commitMetaValue(meta.id, $event)"
+          />
+          <button
+            class="meta-remove"
+            type="button"
+            (click)="removeMeta(meta.id)"
+            [attr.aria-label]="'Remove metadata ' + (mi + 1)"
+            title="Remove"
+          >
+            <app-icon name="x" [size]="12" />
+          </button>
+        </div>
+      }
+      <button class="meta-add" type="button" (click)="addMeta()">
+        <app-icon name="plus" [size]="11" />
+        Add metadata
+      </button>
+    </section>
+
+    <div class="rule"></div>
+  </header>
+
+  <div
+    class="blocks"
+    cdkDropList
+    [cdkDropListData]="note().blocks"
+    (cdkDropListDropped)="onDrop($event)"
+  >
+    @for (block of note().blocks; track block.id; let i = $index) {
+      <app-note-block
+        cdkDragLockAxis="y"
+        [attr.data-block-id]="block.id"
+        [block]="block"
+        [index]="i"
+        [total]="note().blocks.length"
+        [focusOnInit]="focusBlockId() === block.id"
+        [focusColumn]="focusColumnFor(block.id)"
+        (changed)="onBlockChange(block.id, $event)"
+        (columnChanged)="onColumnChange(block.id, $event)"
+        (columnCountChanged)="onColumnCountChange(block.id, $event)"
+        (imageColumnChanged)="onImageColumnChange(block.id, $event)"
+        (typeChanged)="onBlockTypeChange(block.id, $event)"
+        (split)="onSplitBlock(block.id, $event)"
+        (removed)="removeBlock(block.id)"
+        (move)="moveBlock(i, $event)"
+        (focused)="onBlockFocused()"
+      />
+    }
+  </div>
+
+  @if (note().blocks.length === 0) {
+    <p class="empty-note">This note is empty. Add a block to begin.</p>
+  }
+
+  @if (pasteError()) {
+    <p class="paste-error" role="alert">{{ pasteError() }}</p>
+  }
+
+  <div class="block-adder">
+    <button
+      #addButton
+      class="add-block"
+      type="button"
+      (click)="toggleMenu()"
+      [attr.aria-expanded]="menuOpen()"
+      aria-haspopup="menu"
+    >
+      <app-icon name="plus" [size]="14" />
+      Add block
+    </button>
+
+    @if (menuOpen()) {
+      <div class="menu-backdrop" (click)="closeMenu()" aria-hidden="true"></div>
+      <div class="block-menu" role="menu" aria-label="Add block">
+        @for (item of blockMenu; track item.type) {
+          <button
+            type="button"
+            role="menuitem"
+            [appFocus]="menuOpen() && item.type === 'text'"
+            (click)="addBlock(item.type)"
+          >
+            <span class="menu-icon">
+              <app-icon [name]="item.type" [size]="15" />
+            </span>
+            <span class="menu-copy">
+              <span class="menu-label">{{ item.label }}</span>
+              <span class="menu-hint">{{ item.hint }}</span>
+            </span>
+          </button>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="floating-status">
+    <span>Edited {{ relative(note().updatedAt) }}</span>
+    @if (words() > 0) {
+      <span class="status-divider" aria-hidden="true">·</span>
+      <span class="status-word-count">{{ words() }} {{ words() === 1 ? 'word' : 'words' }}</span>
+    }
+  </div>
+</article>

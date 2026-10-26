@@ -1,0 +1,362 @@
+.editor {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 54px 48px 150px;
+}
+
+.note-header {
+  padding-left: 32px;
+  padding-right: 34px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.word-count {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.floating-status {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  box-shadow: var(--shadow-soft);
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.status-divider {
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.55;
+}
+
+.status-word-count {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.title {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: clamp(34px, 4.2vw, 46px);
+  font-weight: 500;
+  letter-spacing: -0.022em;
+  line-height: 1.08;
+}
+
+.metadata {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: 20px;
+}
+
+.meta-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) 20px;
+  gap: 14px;
+  align-items: center;
+  padding: 3px 0;
+}
+
+.meta-key,
+.meta-value {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.meta-key {
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  transition: color 140ms ease;
+}
+
+.meta-value {
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  letter-spacing: 0.005em;
+}
+
+.meta-row:focus-within .meta-key {
+  color: var(--accent);
+}
+
+.meta-remove {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: var(--muted);
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    color 140ms ease,
+    background 140ms ease;
+}
+
+.meta-row:hover .meta-remove,
+.meta-row:focus-within .meta-remove {
+  opacity: 0.7;
+}
+
+.meta-remove:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+  opacity: 1;
+}
+
+.meta-add {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 3px 0;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  transition: color 140ms ease;
+}
+
+.meta-add:hover {
+  color: var(--accent);
+}
+
+.rule {
+  height: 1px;
+  margin: 28px 0 22px;
+  background: var(--line-soft);
+}
+
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.empty-note {
+  margin: 4px 0 0 32px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.paste-error {
+  margin: 8px 0 0 32px;
+  color: var(--danger);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  letter-spacing: 0.005em;
+}
+
+.block-adder {
+  position: relative;
+  margin: 22px 0 0 32px;
+}
+
+.add-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px 7px 8px;
+  border: 1px dashed transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  letter-spacing: 0.005em;
+  transition:
+    color 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.add-block:hover,
+.add-block[aria-expanded='true'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  background: transparent;
+  cursor: default;
+}
+
+.block-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 12;
+  width: 232px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lift);
+}
+
+.block-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 9px;
+  border-radius: 7px;
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.block-menu button:hover,
+.block-menu button:focus-visible {
+  background: var(--accent-soft);
+}
+
+.menu-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 27px;
+  height: 27px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  color: var(--muted);
+}
+
+.block-menu button:hover .menu-icon {
+  color: var(--accent);
+}
+
+.menu-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.menu-label {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.menu-hint {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.005em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .editor {
+    padding: 42px 32px 120px;
+  }
+}
+
+@media (max-width: 720px) {
+  .editor {
+    padding: 30px 18px 100px;
+  }
+
+  .note-header {
+    padding-left: 24px;
+    padding-right: 26px;
+  }
+
+  .topbar {
+    margin-bottom: 18px;
+    font-size: 9px;
+  }
+
+  .title {
+    font-size: clamp(30px, 8vw, 36px);
+  }
+
+  .metadata {
+    margin-top: 16px;
+  }
+
+  .meta-row {
+    grid-template-columns: 92px minmax(0, 1fr) 20px;
+    gap: 8px;
+  }
+
+  .meta-key {
+    font-size: 9.5px;
+  }
+
+  .meta-value {
+    font-size: 12px;
+  }
+
+  .rule {
+    margin: 24px 0 18px;
+  }
+
+  .empty-note {
+    margin-left: 24px;
+  }
+
+  .paste-error {
+    margin-left: 24px;
+  }
+
+  .block-adder {
+    margin-left: 24px;
+  }
+
+  .block-menu {
+    width: min(232px, calc(100vw - 60px));
+  }
+}

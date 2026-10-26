@@ -1,0 +1,95 @@
+<div
+  class="shell"
+  [class.notes-hidden]="!notesVisible()"
+  [class.outline-open]="showOutlineInline()"
+  [class.outline-collapsed]="showOutlineRail()"
+>
+  <app-notes-sidebar
+    [collapsed]="!notesVisible()"
+    [class.open]="sidebarOpen()"
+    (navigated)="closeSidebar()"
+    (collapse)="hideNotesSidebar()"
+    (expand)="showNotesSidebar()"
+  />
+
+  @if (sidebarOpen()) {
+    <button class="scrim" type="button" aria-label="Close notes" (click)="closeSidebar()"></button>
+  }
+
+  <main class="main">
+    <header class="mobile-bar">
+      <button
+        #menuButton
+        class="bar-action"
+        type="button"
+        aria-label="Open notes"
+        (click)="openSidebar()"
+      >
+        <app-icon name="menu" [size]="18" />
+      </button>
+      <span class="bar-title">The Noter<span class="bar-dot">.</span></span>
+      <button class="bar-action" type="button" aria-label="New note" (click)="store.createNote()">
+        <app-icon name="plus" [size]="18" />
+      </button>
+    </header>
+
+    <div class="main-scroll">
+      @if (store.selectedNote(); as note) {
+        <app-note-editor [note]="note" />
+      } @else {
+        <section class="empty">
+          <div class="empty-icon">
+            <app-icon name="note" [size]="23" />
+          </div>
+          <p class="empty-kicker">Local-first notes</p>
+          <h1>A quiet place<br />for your thoughts.</h1>
+          <p class="empty-copy">
+            Write, collect images, shape lists — then drag the pieces until they feel right.
+          </p>
+          <button class="primary" type="button" (click)="store.createNote()">
+            <app-icon name="plus" [size]="15" />
+            New note
+          </button>
+          <p class="empty-hint">Everything stays in this browser.</p>
+        </section>
+      }
+    </div>
+  </main>
+
+  @if (store.selectedNote(); as note) {
+    @if (outlineOverlay()) {
+      <button
+        class="outline-scrim"
+        type="button"
+        aria-label="Close outline"
+        (click)="closeOutlineOverlay()"
+      ></button>
+    }
+
+    @if (outlineVisible()) {
+      <app-note-outline
+        class="outline-column"
+        [class.outline-overlay]="outlineOverlay()"
+        [note]="note"
+        (selected)="selectHeading($event)"
+        (collapse)="hideOutline()"
+      />
+    }
+
+    @if (showOutlineRail()) {
+      <button
+        #outlineButton
+        class="outline-rail"
+        [class.floating]="!wideLayout()"
+        type="button"
+        (click)="showOutline()"
+        aria-label="Show heading outline"
+        title="Show outline"
+        aria-controls="note-outline"
+        aria-expanded="false"
+      >
+        <app-icon name="panel-right-open" [size]="16" />
+      </button>
+    }
+  }
+</div>

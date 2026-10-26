@@ -1,0 +1,166 @@
+/* Global styles for The Noter. Component-level styles live next to each component. */
+
+:root {
+  --font-ui: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Newsreader Variable', ui-serif, Georgia, 'Times New Roman', serif;
+
+  --paper: #f3f0ea;
+  --surface: #fbfaf7;
+  --surface-raised: #ffffff;
+  --ink: #1d1b17;
+  --ink-soft: #4f4a42;
+  --muted: #6f695e;
+  --line: #e4ded3;
+  --line-soft: #ece7dd;
+  --accent: #3d6b58;
+  --accent-contrast: #fbfaf7;
+  --accent-soft: rgba(61, 107, 88, 0.08);
+  --accent-line: rgba(61, 107, 88, 0.32);
+  --danger: #a4472f;
+  --danger-soft: rgba(164, 71, 47, 0.08);
+  --shadow-soft: 0 1px 2px rgba(40, 33, 20, 0.05), 0 8px 24px rgba(40, 33, 20, 0.04);
+  --shadow-lift: 0 18px 50px rgba(40, 33, 20, 0.18), 0 0 0 1px rgba(40, 33, 20, 0.06);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121211;
+    --surface: #1a1917;
+    --surface-raised: #211f1c;
+    --ink: #ece7dd;
+    --ink-soft: #bbb4a7;
+    --muted: #948d80;
+    --line: #2c2a26;
+    --line-soft: #242320;
+    --accent: #8dbfa5;
+    --accent-contrast: #141512;
+    --accent-soft: rgba(141, 191, 165, 0.1);
+    --accent-line: rgba(141, 191, 165, 0.32);
+    --danger: #e08a70;
+    --danger-soft: rgba(224, 138, 112, 0.1);
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.18);
+    --shadow-lift: 0 18px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+p,
+figure {
+  margin: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  color: inherit;
+  font: inherit;
+}
+
+button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+input,
+textarea {
+  min-width: 0;
+  caret-color: var(--accent);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 2px;
+}
+
+/* Text fields communicate focus through their caret and container styling. */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Scrollbars */
+* {
+  scrollbar-color: color-mix(in srgb, var(--muted) 35%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+/* CDK drag & drop ------------------------------------------------------- */
+
+.cdk-drag-preview {
+  border-radius: 10px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lift);
+  cursor: grabbing;
+}
+
+.cdk-drag-preview .block-actions {
+  opacity: 0 !important;
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.22;
+}
+
+.cdk-drag-animating {
+  transition: transform 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.blocks.cdk-drop-list-dragging .block-host:not(.cdk-drag-placeholder) {
+  transition: transform 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.cdk-drag-dragging {
+  cursor: grabbing;
+}

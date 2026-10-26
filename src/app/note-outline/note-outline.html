@@ -1,0 +1,46 @@
+<aside class="outline" aria-label="Note outline" id="note-outline">
+  <div class="outline-header">
+    <span>Outline</span>
+    <span class="outline-tools">
+      @if (headings().length > 0) {
+        <span class="outline-count">{{ headings().length }}</span>
+      }
+      <button
+        class="outline-collapse"
+        type="button"
+        (click)="collapse.emit()"
+        title="Hide outline"
+        aria-label="Hide heading outline"
+        aria-controls="note-outline"
+        aria-expanded="true"
+      >
+        <app-icon name="panel-right-close" [size]="14" />
+      </button>
+    </span>
+  </div>
+
+  @if (headings().length > 0) {
+    <nav aria-label="Headings">
+      <ol class="outline-list">
+        @for (heading of headings(); track heading.id) {
+          <li>
+            <button
+              class="outline-link"
+              type="button"
+              [attr.data-level]="heading.level"
+              [style.padding-left.px]="indent(heading.level)"
+              (click)="selected.emit(heading.id)"
+              [attr.aria-label]="'Go to heading ' + heading.level + ': ' + heading.text"
+              [title]="heading.text"
+            >
+              <span class="outline-arrow" aria-hidden="true">→</span>
+              <span class="outline-text">{{ heading.text }}</span>
+            </button>
+          </li>
+        }
+      </ol>
+    </nav>
+  } @else {
+    <p class="outline-empty">Headings you add will appear here.</p>
+  }
+</aside>

@@ -1,0 +1,287 @@
+<div
+  class="block"
+  [class.block-heading]="block().type === 'heading'"
+  [attr.data-level]="block().type === 'heading' ? block().level : null"
+>
+  <div class="gutter">
+    <button
+      class="handle"
+      type="button"
+      cdkDragHandle
+      (keydown)="onHandleKeydown($event)"
+      [attr.aria-label]="
+        'Reorder ' +
+        block().type +
+        ' block, position ' +
+        (index() + 1) +
+        ' of ' +
+        total() +
+        '. Use arrow up or down to move it.'
+      "
+      title="Drag to reorder · ↑ ↓"
+    >
+      <app-icon name="grip" [size]="14" />
+    </button>
+  </div>
+
+  <div class="content">
+    @switch (block().type) {
+      @case ('text') {
+        <div
+          class="text-columns"
+          [class.multiple]="visibleColumns().length > 1"
+          [attr.data-columns]="visibleColumns().length"
+        >
+          @for (column of visibleColumns(); track $index; let i = $index) {
+            <textarea
+              #columnInput
+              class="text-input"
+              rows="1"
+              appAutosize
+              [value]="column"
+              (input)="onColumnInput($event, i)"
+              (keydown)="onColumnKeydown($event, i)"
+              [appFocus]="focusOnInit() && i === 0"
+              [appFocusOffset]="0"
+              (appFocusDone)="focused.emit()"
+              [placeholder]="i === 0 ? 'Start writing…' : 'Column ' + (i + 1)"
+              [attr.aria-label]="
+                visibleColumns().length > 1
+                  ? 'Text block, column ' + (i + 1) + ' of ' + visibleColumns().length
+                  : 'Text block'
+              "
+            ></textarea>
+          }
+        </div>
+      }
+
+      @case ('heading') {
+        <textarea
+          class="heading-input"
+          rows="1"
+          appAutosize
+          [attr.data-level]="block().level"
+          [value]="block().text"
+          (input)="onHeadingInput($event)"
+          [appFocus]="focusOnInit()"
+          (appFocusDone)="focused.emit()"
+          [placeholder]="'Heading ' + block().level + ' · type #'"
+          title="Type # through ###### at the start to change the heading level."
+          [attr.aria-label]="'Heading ' + block().level"
+        ></textarea>
+      }
+
+      @case ('list') {
+        <div class="list">
+          @for (item of block().items; track $index; let i = $index) {
+            <div class="list-row">
+              <span class="marker" [class.bullet]="!block().ordered" aria-hidden="true">{{
+                block().ordered ? i + 1 + '.' : ''
+              }}</span>
+              <input
+                #itemInput
+                class="list-input"
+                type="text"
+                [value]="item"
+                (input)="onItemInput($event, i)"
+                (keydown)="onItemKeydown($event, i)"
+                [appFocus]="focusOnInit() && i === 0"
+                (appFocusDone)="focused.emit()"
+                placeholder="List item"
+                [attr.aria-label]="'List item ' + (i + 1)"
+              />
+              <button
+                class="item-remove"
+                type="button"
+                (click)="removeItem(i)"
+                aria-label="Remove list item"
+                title="Remove item"
+              >
+                <app-icon name="x" [size]="12" />
+              </button>
+            </div>
+          }
+          <button class="add-item" type="button" (click)="addItem(block().items.length - 1)">
+            <app-icon name="plus" [size]="12" />
+            Add item
+          </button>
+        </div>
+      }
+
+      @case ('image') {
+        <div
+          class="image-columns"
+          [class.multiple]="imageColumns().length > 1"
+          [attr.data-columns]="imageColumns().length"
+        >
+          @for (column of imageColumns(); track column.id; let i = $index) {
+            <app-image-column
+              [class.image-column-main]="column.main"
+              [column]="column"
+              [index]="i"
+              [fill]="imageColumns().length > 1"
+              [focusOnInit]="i === 0 ? focusOnInit() : isImageColumnFocused(i)"
+              (changed)="onImageColumnChange(i, $event)"
+              (focused)="onImageColumnFocused(i)"
+            />
+          }
+        </div>
+      }
+    }
+  </div>
+
+  <div
+    class="block-actions"
+    [class.menu-open]="columnsMenuOpen() || headingMenuOpen() || typeMenuOpen()"
+  >
+    <button
+      #typeButton
+      class="action type-toggle"
+      type="button"
+      (click)="toggleTypeMenu()"
+      [attr.aria-expanded]="typeMenuOpen()"
+      aria-haspopup="menu"
+      [attr.aria-label]="'Block type: ' + block().type"
+      [title]="'Block type: ' + block().type"
+    >
+      <app-icon [name]="block().type" [size]="13" />
+    </button>
+
+    @if (typeMenuOpen()) {
+      <div class="columns-menu type-menu" role="menu" aria-label="Change block type">
+        @for (item of blockTypes; track item.type) {
+          <button
+            type="button"
+            role="menuitemradio"
+            [attr.aria-checked]="item.type === block().type"
+            [attr.aria-label]="'Change to ' + item.label"
+            [appFocus]="item.type === block().type"
+            (click)="setBlockType(item.type)"
+          >
+            <span class="type-icon"><app-icon [name]="item.type" [size]="13" /></span>
+            <span>{{ item.label }}</span>
+            <span class="columns-check">
+              @if (item.type === block().type) {
+                <app-icon name="check" [size]="13" />
+              }
+            </span>
+          </button>
+        }
+      </div>
+    }
+
+    @if (block().type === 'heading') {
+      <button
+        #headingButton
+        class="action heading-toggle"
+        type="button"
+        [class.active]="block().level !== 1"
+        (click)="toggleHeadingMenu()"
+        [attr.aria-expanded]="headingMenuOpen()"
+        aria-haspopup="menu"
+        [attr.aria-label]="'Heading level: H' + block().level"
+        [title]="'Heading level: H' + block().level"
+      >
+        H{{ block().level }}
+      </button>
+
+      @if (headingMenuOpen()) {
+        <div class="columns-menu heading-menu" role="menu" aria-label="Heading level">
+          @for (level of headingOptions; track level) {
+            <button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="level === block().level"
+              [attr.aria-label]="'Heading ' + level"
+              [appFocus]="level === block().level"
+              (click)="setHeadingLevel(level)"
+            >
+              <span class="heading-count">H{{ level }}</span>
+              <span>Heading {{ level }}</span>
+              <span class="columns-check">
+                @if (level === block().level) {
+                  <app-icon name="check" [size]="13" />
+                }
+              </span>
+            </button>
+          }
+        </div>
+      }
+    }
+
+    @if (block().type === 'text' || block().type === 'image') {
+      <button
+        #columnsButton
+        class="action columns-toggle"
+        type="button"
+        [class.active]="block().columnCount > 1"
+        (click)="toggleColumnsMenu()"
+        [attr.aria-expanded]="columnsMenuOpen()"
+        aria-haspopup="menu"
+        [attr.aria-label]="
+          (block().type === 'image' ? 'Image' : 'Text') +
+          ' columns: ' +
+          block().columnCount +
+          ' of ' +
+          maxColumns
+        "
+        [title]="
+          (block().type === 'image' ? 'Image' : 'Text') +
+          ' columns: ' +
+          block().columnCount +
+          ' of ' +
+          maxColumns
+        "
+      >
+        <app-icon name="columns" [size]="14" />
+      </button>
+
+      @if (columnsMenuOpen()) {
+        <div
+          class="columns-menu"
+          role="menu"
+          [attr.aria-label]="block().type === 'image' ? 'Image columns' : 'Text columns'"
+        >
+          @for (count of columnOptions; track count) {
+            <button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="count === block().columnCount"
+              [attr.aria-label]="count + (count === 1 ? ' column' : ' columns')"
+              [appFocus]="count === block().columnCount"
+              (click)="setColumns(count)"
+            >
+              <span class="columns-count">{{ count }}</span>
+              <span>{{ count === 1 ? 'column' : 'columns' }}</span>
+              <span class="columns-check">
+                @if (count === block().columnCount) {
+                  <app-icon name="check" [size]="13" />
+                }
+              </span>
+            </button>
+          }
+        </div>
+      }
+    }
+    @if (block().type === 'list') {
+      <button
+        class="action list-toggle"
+        type="button"
+        (click)="toggleOrdered()"
+        [title]="block().ordered ? 'Switch to bulleted list' : 'Switch to numbered list'"
+        [attr.aria-label]="block().ordered ? 'Switch to bulleted list' : 'Switch to numbered list'"
+      >
+        {{ block().ordered ? '1.' : '•' }}
+      </button>
+    }
+    <button
+      class="action remove"
+      type="button"
+      (click)="removed.emit()"
+      aria-label="Delete block"
+      title="Delete block"
+    >
+      <app-icon name="trash" [size]="13" />
+    </button>
+  </div>
+</div>
