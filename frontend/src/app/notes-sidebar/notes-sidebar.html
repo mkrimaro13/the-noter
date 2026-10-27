@@ -173,12 +173,13 @@
       <span
         class="save-state"
         aria-live="polite"
-        [class.error]="store.storageError()"
-        [attr.title]="store.storageError()"
+        [class.error]="store.storageError() || sync.status() === 'error'"
+        [class.syncing]="sync.status() === 'syncing'"
+        [attr.title]="saveTitle()"
       >
         <app-icon class="save-icon" name="logo" [size]="12" />
         <span class="dot"></span>
-        {{ store.storageError() ? 'Not saved' : 'Saved locally' }}
+        {{ saveLabel() }}
       </span>
       <span class="footer-count">{{
         store.total() === 1 ? '1 note' : store.total() + ' notes'

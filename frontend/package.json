@@ -6,6 +6,9 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
+    "prestart": "node scripts/write-sync-config.mjs",
+    "prebuild": "node scripts/write-sync-config.mjs",
+    "prewatch": "node scripts/write-sync-config.mjs",
     "format": "prettier --write ."
   },
   "private": true,

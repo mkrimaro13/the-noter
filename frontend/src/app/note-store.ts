@@ -1,5 +1,6 @@
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { FenceShortcut, MarkdownBlockShortcut } from './markdown';
+import { SyncService, type RemoteApply } from './sync';
 import {
   BlockPatch,
   BlockType,
@@ -28,6 +29,7 @@ const SAVE_DELAY = 250;
 @Injectable({ providedIn: 'root' })
 export class NoteStore {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sync = inject(SyncService);
 
   private readonly allNotes = signal<Note[]>(loadNotes());
 
@@ -86,11 +88,17 @@ export class NoteStore {
       window.removeEventListener('beforeunload', flush);
       this.flush();
     });
+
+    this.sync.start({
+      getNotes: () => this.allNotes(),
+      applyRemote: (change) => this.applyRemote(change),
+    });
   }
 
   createNote(): Note {
     const note = createNote();
     this.allNotes.update((notes) => [note, ...notes]);
+    this.sync.markDirty(note.id);
     this.query.set('');
     this.select(note.id);
     this.pendingTitleFocus.set(note.id);
@@ -105,6 +113,7 @@ export class NoteStore {
     const parentExists = this.allNotes().some((note) => note.id === parentId);
     const note = createNote(parentExists ? parentId : null);
     this.allNotes.update((notes) => [note, ...notes]);
+    this.sync.markDirty(note.id);
     this.query.set('');
     this.select(note.id);
     this.pendingTitleFocus.set(note.id);
@@ -207,6 +216,9 @@ export class NoteStore {
       ...notes.filter((note) => note.id !== noteId),
     ]);
 
+    this.sync.markDirty(noteId);
+    this.sync.markDirty(child.id);
+
     return block;
   }
 
@@ -238,6 +250,9 @@ export class NoteStore {
       child,
       ...notes.filter((note) => note.id !== noteId),
     ]);
+
+    this.sync.markDirty(noteId);
+    this.sync.markDirty(child.id);
 
     return block;
   }
@@ -504,7 +519,8 @@ export class NoteStore {
    * at the deleted note are removed so no dangling inline editors remain.
    */
   deleteNote(noteId: string): void {
-    const deleted = this.allNotes().find((note) => note.id === noteId) ?? null;
+    const before = new Map(this.allNotes().map((note) => [note.id, note]));
+    const deleted = before.get(noteId) ?? null;
     const parentId = deleted?.parentId ?? null;
     const remaining = this.allNotes()
       .filter((note) => note.id !== noteId)
@@ -517,17 +533,87 @@ export class NoteStore {
       });
     this.allNotes.set(remaining);
 
+    // Reparented children and notes that lost an inline sub-note block are
+    // changes of their own and must reach the server too.
+    for (const note of remaining) {
+      const previous = before.get(note.id);
+      if (previous && (previous.parentId !== note.parentId || previous.blocks !== note.blocks)) {
+        this.sync.markDirty(note.id);
+      }
+    }
+    this.sync.markDeleted(noteId);
+
     if (this.selected() === noteId) {
       const next = [...remaining].sort((a, b) => b.updatedAt - a.updatedAt)[0];
       this.selected.set(next?.id ?? null);
     }
   }
 
+  /**
+   * Applies notes and tombstones pulled from CouchDB. A remote document never
+   * replaces a newer local edit, and conflict copies are queued for upload.
+   */
+  private applyRemote(change: RemoteApply): boolean {
+    if (change.notes.length === 0 && change.deletes.length === 0 && change.copies.length === 0) {
+      return true;
+    }
+
+    this.allNotes.update((notes) => {
+      const next = new Map(notes.map((note) => [note.id, note]));
+
+      for (const incoming of change.notes) {
+        const note = normalizeNote({ ...incoming.data, id: incoming.id });
+        if (!note) continue;
+        const local = next.get(note.id);
+        if (local && local.updatedAt > note.updatedAt) continue;
+        next.set(note.id, {
+          ...note,
+          // Keep the local clock monotonic even if the server clock is behind.
+          updatedAt: Math.max(note.updatedAt, local?.updatedAt ?? 0),
+        });
+      }
+
+      for (const id of change.deletes) next.delete(id);
+
+      for (const incoming of change.copies) {
+        const note = normalizeNote({ ...incoming.data, id: incoming.id });
+        if (!note) continue;
+        next.set(note.id, note);
+      }
+
+      return [...next.values()];
+    });
+
+    for (const copy of change.copies) this.sync.markDirty(copy.id);
+
+    // Write remote changes and conflict copies before returning, so the sync
+    // service can safely resolve server-side conflicts afterwards.
+    this.flush();
+
+    if (!this.allNotes().some((note) => note.id === this.selected())) {
+      this.selected.set(this.notes()[0]?.id ?? null);
+    }
+
+    return this.storageError() === null;
+  }
+
   private mutate(noteId: string, update: (note: Note) => Note): void {
     const now = Date.now();
+    let changed = false;
+
     this.allNotes.update((notes) =>
-      notes.map((note) => (note.id === noteId ? { ...update(note), updatedAt: now } : note)),
+      notes.map((note) => {
+        if (note.id !== noteId) return note;
+        const next = update(note);
+        if (next === note) return note;
+        changed = true;
+        // Two edits in the same millisecond still need distinct timestamps so
+        // the pull comparison can tell which copy is newer.
+        return { ...next, updatedAt: Math.max(now, note.updatedAt + 1) };
+      }),
     );
+
+    if (changed) this.sync.markDirty(noteId);
   }
 
   private flush(): void {
@@ -544,6 +630,10 @@ export class NoteStore {
     } catch {
       this.storageError.set('Storage is full. Recent edits are not being saved.');
     }
+
+    // Strict order: the local array is written first; only then may the sync
+    // service send pending note ids to CouchDB.
+    this.sync.notifyPersisted();
   }
 }
 

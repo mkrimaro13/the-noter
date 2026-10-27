@@ -1,0 +1,3 @@
+# CouchDB writes its database files here. Keep the folder, ignore the contents.
+*
+!.gitignore

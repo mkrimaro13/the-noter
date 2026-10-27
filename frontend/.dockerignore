@@ -1,0 +1,8 @@
+node_modules
+dist
+.angular
+.git
+*.log
+# Never bake development credentials into the image. The runtime entrypoint
+# writes /sync-config.json from the Compose environment instead.
+public/sync-config.json

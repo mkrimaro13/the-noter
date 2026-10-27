@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { Note, NoteTreeItem } from '../models';
 import { NoteStore } from '../note-store';
+import { SyncService } from '../sync';
 import { blockCountLabel, relativeTime } from '../format';
 import { Icon } from '../ui/icon';
 
@@ -39,8 +40,31 @@ export class NotesSidebar {
   readonly expand = output<void>();
 
   protected readonly store = inject(NoteStore);
+  protected readonly sync = inject(SyncService);
   protected readonly confirmingDelete = signal<string | null>(null);
   protected readonly collapsedNotes = signal<ReadonlySet<string>>(new Set());
+
+  /**
+   * Every label keeps “Saved locally” first: the browser copy is written before
+   * the network request, and it stays valid when the server is unavailable.
+   */
+  protected readonly saveLabel = computed(() => {
+    if (this.store.storageError()) return 'Not saved';
+    switch (this.sync.status()) {
+      case 'syncing':
+        return 'Saved locally · Syncing…';
+      case 'synced':
+        return 'Saved locally · Synced';
+      case 'offline':
+        return 'Saved locally · Offline';
+      case 'error':
+        return 'Saved locally · Sync error';
+      default:
+        return 'Saved locally';
+    }
+  });
+
+  protected readonly saveTitle = computed(() => this.store.storageError() ?? this.sync.message());
 
   /**
    * A flat, depth-first list of sidebar rows. Search switches to a simple flat
