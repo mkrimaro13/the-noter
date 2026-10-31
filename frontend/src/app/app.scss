@@ -327,6 +327,138 @@ app-note-outline.outline-overlay {
   }
 }
 
+.cheat-sheet-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 100;
+}
+
+.cheat-sheet-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: all 150ms ease;
+}
+
+.cheat-sheet-button:hover {
+  background: var(--surface-2);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.cheat-sheet-panel {
+  position: absolute;
+  right: 0;
+  bottom: 50px;
+  width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  animation: slideUp 150ms ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cheat-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.cheat-sheet-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cheat-sheet-close:hover {
+  color: var(--ink);
+}
+
+.cheat-sheet-content {
+  padding: 12px 16px;
+}
+
+.cheat-sheet-section {
+  margin-bottom: 16px;
+}
+
+.cheat-sheet-section:last-child {
+  margin-bottom: 0;
+}
+
+.cheat-sheet-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.cheat-sheet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.cheat-sheet-row span:first-child {
+  color: var(--ink);
+}
+
+.cheat-sheet-row span:last-child {
+  color: var(--muted);
+}
+
+.cheat-sheet-row code {
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.cheat-sheet-row kbd {
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 11px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .shell {
     transition: none;

@@ -17,6 +17,7 @@ import {
   MarkdownBlockShortcut,
   hasInlineMarkup,
   readBlockShortcut,
+  readExtendedBlockShortcut,
   readFence,
   readFenceLine,
 } from '../markdown';
@@ -175,6 +176,29 @@ export class NoteBlock {
       return;
     }
 
+    // Extended shortcuts: $$ -> function, `` -> code, #> -> subpage
+    if (index === 0 && this.visibleColumns().length === 1) {
+      const extended = readExtendedBlockShortcut(value);
+      if (extended) {
+        if (extended.kind === 'function') {
+          this.columnChanged.emit({ index, value: extended.text });
+          this.typeChanged.emit('function');
+          return;
+        }
+        if (extended.kind === 'code') {
+          this.columnChanged.emit({ index, value: extended.text });
+          this.typeChanged.emit('code');
+          return;
+        }
+        if (extended.kind === 'subpage') {
+          this.columnChanged.emit({ index, value: extended.text });
+          // For subpage, we need to trigger creation - emit as special
+          this.typeChanged.emit('subnote');
+          return;
+        }
+      }
+    }
+
     // Markdown block prefixes only make sense for a single writing column.
     const shortcut = readBlockShortcut(value);
     if (shortcut && index === 0 && this.visibleColumns().length === 1) {
@@ -186,6 +210,31 @@ export class NoteBlock {
   }
 
   protected onColumnKeydown(event: KeyboardEvent, index: number): void {
+    // Keyboard shortcuts
+    if (event.ctrlKey && event.altKey && !event.shiftKey && !event.metaKey && !event.isComposing) {
+      if (event.key >= '1' && event.key <= '6') {
+        event.preventDefault();
+        this.changed.emit({ level: parseInt(event.key, 10) });
+        this.typeChanged.emit('heading');
+        return;
+      }
+      if (event.key.toLowerCase() === 'e') {
+        event.preventDefault();
+        this.typeChanged.emit('code');
+        return;
+      }
+      if (event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        this.typeChanged.emit('function');
+        return;
+      }
+      if (event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        this.typeChanged.emit('subnote');
+        return;
+      }
+    }
+
     // Plain Enter starts a new text block. Shift/Alt/Ctrl/Meta + Enter keep
     // their native textarea behavior (a line break within the block), and IME
     // composition must never be interrupted.

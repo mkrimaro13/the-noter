@@ -92,4 +92,45 @@
       </button>
     }
   }
+
+  <div class="cheat-sheet-fab">
+    <button
+      class="cheat-sheet-button"
+      type="button"
+      (click)="toggleCheatSheet()"
+      aria-label="Keyboard shortcuts"
+      title="Keyboard shortcuts"
+      [attr.aria-expanded]="cheatSheetOpen()"
+    >
+      <app-icon name="info" [size]="18" />
+    </button>
+    @if (cheatSheetOpen()) {
+      <div class="cheat-sheet-panel" role="dialog" aria-label="Keyboard shortcuts">
+        <div class="cheat-sheet-header">
+          <span>Shortcuts</span>
+          <button type="button" class="cheat-sheet-close" (click)="closeCheatSheet()" aria-label="Close">
+            <app-icon name="close" [size]="14" />
+          </button>
+        </div>
+        <div class="cheat-sheet-content">
+          <div class="cheat-sheet-section">
+            <div class="cheat-sheet-section-title">Block type shortcuts</div>
+            <div class="cheat-sheet-row"><span><code>$$</code> at start</span><span>Function block</span></div>
+            <div class="cheat-sheet-row"><span><code>``</code> at start</span><span>Code block</span></div>
+            <div class="cheat-sheet-row"><span><code>#></code> at start</span><span>Subpage block</span></div>
+          </div>
+          <div class="cheat-sheet-section">
+            <div class="cheat-sheet-section-title">Keyboard shortcuts</div>
+            <div class="cheat-sheet-row"><span><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd>-<kbd>6</kbd></span><span>Heading H1-H6</span></div>
+            <div class="cheat-sheet-row"><span><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>e</kbd></span><span>Code block</span></div>
+            <div class="cheat-sheet-row"><span><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>f</kbd></span><span>Function block</span></div>
+            <div class="cheat-sheet-row"><span><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>p</kbd></span><span>Subpage block</span></div>
+            <div class="cheat-sheet-row"><span><kbd>Enter</kbd></span><span>New block</span></div>
+            <div class="cheat-sheet-row"><span><kbd>Shift</kbd>+<kbd>Enter</kbd></span><span>Line break</span></div>
+            <div class="cheat-sheet-row"><span><kbd>Esc</kbd></span><span>Close menus</span></div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
 </div>

@@ -14,11 +14,13 @@ export type IconName =
   | 'subnote'
   | 'x'
   | 'check'
+  | 'close'
   | 'menu'
   | 'note'
   | 'upload'
   | 'columns'
   | 'smile'
+  | 'info'
   | 'chevron-right'
   | 'chevron-down'
   | 'corner-down-right'
@@ -94,8 +96,15 @@ export type IconName =
         @case ('x') {
           <path d="M6 6l12 12M18 6 6 18" />
         }
+        @case ('close') {
+          <path d="M6 6l12 12M18 6 6 18" />
+        }
         @case ('check') {
           <path d="m5 12 5 5L20 7" />
+        }
+        @case ('info') {
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 16v-4M12 8h.01" />
         }
         @case ('smile') {
           <circle cx="12" cy="12" r="9" />

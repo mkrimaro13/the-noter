@@ -27,6 +27,9 @@ const TRAILING_PUNCTUATION = /^(.*?)([.,;:!?]+)$/;
 const HEADING_PREFIX = /^(#{1,6})[ \t]+(.*)$/;
 const UNORDERED_LIST_PREFIX = /^[-*+][ \t]+(.*)$/;
 const ORDERED_LIST_PREFIX = /^\d{1,9}[.)][ \t]+(.*)$/;
+const FUNCTION_SHORTCUT = /^\$\$[ \t]*(.*)$/s;
+const CODE_SHORTCUT = /^``[ \t]*(.*)$/s;
+const SUBPAGE_SHORTCUT = /^#>[ \t]*(.*)$/s;
 
 /** Splits writing into text, inline-code, and link tokens for safe rendering. */
 export function parseInline(value: string): InlineToken[] {
@@ -101,6 +104,31 @@ export function readFence(value: string): FenceShortcut | null {
   }
 
   return { language: opening[1].toLowerCase(), text: body.join('\n') };
+}
+
+/** Shortcuts for converting blocks: $$ to function, `` to code, #> to subpage */
+export function readExtendedBlockShortcut(
+  value: string,
+): { kind: 'function'; text: string } | { kind: 'code'; text: string } | { kind: 'subpage'; text: string } | null {
+  const funcMatch = FUNCTION_SHORTCUT.exec(value);
+  if (funcMatch) {
+    let text = funcMatch[1];
+    // Pasting a balanced `$$…$$` expression should not leave the closing
+    // delimiter behind in the new function block.
+    if (text.trimEnd().endsWith('$$')) {
+      text = text.trimEnd().slice(0, -2).trimEnd();
+    }
+    return { kind: 'function', text };
+  }
+  const codeMatch = CODE_SHORTCUT.exec(value);
+  if (codeMatch) {
+    return { kind: 'code', text: codeMatch[1] };
+  }
+  const subpageMatch = SUBPAGE_SHORTCUT.exec(value);
+  if (subpageMatch) {
+    return { kind: 'subpage', text: subpageMatch[1] };
+  }
+  return null;
 }
 
 /**

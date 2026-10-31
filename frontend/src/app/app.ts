@@ -36,6 +36,7 @@ export class App {
   protected readonly outlineVisible = signal(readPreference(OUTLINE_VISIBLE_KEY, true));
   protected readonly outlineOverlay = signal(false);
   protected readonly wideLayout = signal(true);
+  protected readonly cheatSheetOpen = signal(false);
 
   protected readonly showOutlineInline = computed(
     () => this.store.selectedNote() !== null && this.wideLayout() && this.outlineVisible(),
@@ -128,7 +129,19 @@ export class App {
     }
   }
 
+  protected toggleCheatSheet(): void {
+    this.cheatSheetOpen.update((open) => !open);
+  }
+
+  protected closeCheatSheet(): void {
+    this.cheatSheetOpen.set(false);
+  }
+
   protected handleEscape(): void {
+    if (this.cheatSheetOpen()) {
+      this.cheatSheetOpen.set(false);
+      return;
+    }
     if (this.outlineOverlay()) {
       this.closeOutlineOverlay();
       return;
