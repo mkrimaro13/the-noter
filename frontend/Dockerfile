@@ -1,5 +1,5 @@
 # Build the Angular app, then serve the static output with nginx.
-FROM node:24-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 
 WORKDIR /app
 ENV NG_CLI_ANALYTICS=false

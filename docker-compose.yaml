@@ -49,7 +49,9 @@ services:
     environment:
       # Rendered into /sync-config.json at container start. Only the app user
       # credentials are exposed, never the admin ones.
-      SYNC_URL: ${SYNC_URL:-http://127.0.0.1:5984/thenoter}
+      # Use /couchdb/thenoter to proxy CouchDB through the app origin when exposing
+      # only the frontend (e.g. via Tailscale Serve).
+      SYNC_URL: ${SYNC_URL:-/couchdb/thenoter}
       SYNC_USER: ${COUCHDB_APP_USER:-thenoter}
       SYNC_PASSWORD: ${COUCHDB_APP_PASSWORD:-thenoter-app-local}
     depends_on:

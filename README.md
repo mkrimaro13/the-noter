@@ -92,7 +92,7 @@ the template.
 | `COUCHDB_DB`           | init           | Database name, `thenoter`                             |
 | `COUCHDB_APP_USER`     | init, frontend | Least-privilege user stored in `/sync-config.json`    |
 | `COUCHDB_APP_PASSWORD` | init, frontend | App password stored in `/sync-config.json`            |
-| `SYNC_URL`             | frontend       | CouchDB database URL the browser calls                |
+| `SYNC_URL`             | frontend       | CouchDB database URL or path the browser calls           |
 
 The frontend never receives the admin credentials. It fetches `/sync-config.json` at startup; nginx
 serves that file with `Cache-Control: no-store`.
