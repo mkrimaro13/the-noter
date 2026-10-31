@@ -581,14 +581,21 @@ function parseConfig(value: unknown): SyncConfig {
     typeof url !== 'string' ||
     typeof username !== 'string' ||
     typeof password !== 'string' ||
-    !/^https?:\/\//.test(url) ||
     username.length === 0 ||
     password.length === 0
   ) {
     return { enabled: false };
   }
 
-  return { enabled: true, url: url.replace(/\/+$/, ''), username, password };
+  if (/^https?:\/\//.test(url)) {
+    return { enabled: true, url: url.replace(/\/+$/, ''), username, password };
+  }
+
+  if (url.startsWith('/')) {
+    return { enabled: true, url: url.replace(/\/+$/, ''), username, password };
+  }
+
+  return { enabled: false };
 }
 
 function loadState(): SyncState {

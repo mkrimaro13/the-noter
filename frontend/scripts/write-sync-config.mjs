@@ -23,16 +23,24 @@ mkdirSync(dirname(outputPath), { recursive: true });
 
 if (!url || !username || !password) {
   writeFileSync(outputPath, `${JSON.stringify({ enabled: false }, null, 2)}\n`);
-  console.log('Sync config: disabled (SYNC_URL, COUCHDB_APP_USER or COUCHDB_APP_PASSWORD missing).');
+  console.log(
+    'Sync config: disabled (SYNC_URL, COUCHDB_APP_USER or COUCHDB_APP_PASSWORD missing).',
+  );
 } else {
-  const config = {
-    enabled: true,
-    url: url.replace(/\/+$/, ''),
-    username,
-    password,
-  };
-  writeFileSync(outputPath, `${JSON.stringify(config, null, 2)}\n`);
-  console.log(`Sync config: enabled for ${config.url} as ${username}.`);
+  let normalized = url.replace(/\/+$/, '');
+  if (!/^https?:\/\//.test(normalized) && !normalized.startsWith('/')) {
+    writeFileSync(outputPath, `${JSON.stringify({ enabled: false }, null, 2)}\n`);
+    console.log('Sync config: disabled (SYNC_URL must be http(s) or a root-relative path).');
+  } else {
+    const config = {
+      enabled: true,
+      url: normalized,
+      username,
+      password,
+    };
+    writeFileSync(outputPath, `${JSON.stringify(config, null, 2)}\n`);
+    console.log(`Sync config: enabled for ${config.url} as ${username}.`);
+  }
 }
 
 function pick(key) {
