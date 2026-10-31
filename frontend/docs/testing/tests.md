@@ -34,7 +34,7 @@ npm run test:coverage    # single run with V8 coverage
 npm run build            # production build check
 ```
 
-The suite currently contains **300 tests across 20 spec files**.
+The suite currently contains **302 tests across 20 spec files**.
 
 ## Coverage
 
@@ -43,7 +43,7 @@ result is:
 
 | Metric     | Coverage |
 | ---------- | -------: |
-| Statements |   96.07% |
+| Statements |   96.08% |
 | Branches   |   90.26% |
 | Functions  |   93.94% |
 | Lines      |   97.73% |
@@ -69,13 +69,13 @@ It provides only the browser APIs jsdom does not implement:
 
 ### Pure logic
 
-| Spec                       | Tests | Coverage and rationale                                                                                                                                                                                                                                          |
-| -------------------------- | ----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/latex.spec.ts`    |    16 | Math detection, delimiter stripping, full-document bodies, `\\[2ex]` row spacing, starred commands, `tabular`/`tabular*`/`tabularx`, width columns, wrappers, and `multline`/`eqnarray`. These are the failure modes that produced blank or corrupted previews. |
-| `src/app/markdown.spec.ts` |    19 | Inline code/links/URLs, safe href filtering, fences, the `$$`, code-fence, and `#>` shortcuts, heading and list prefixes, and block-shortcut parsing. Keeps the deliberately small Markdown subset predictable.                                                 |
-| `src/app/models.spec.ts`   |    28 | Factories, text/image column visibility, plain-text extraction, block conversion, note creation, and the block menu. The store and every editor depend on these shapes.                                                                                         |
-| `src/app/format.spec.ts`   |    12 | Relative times, block labels, word counts, and `now()`/`today()`/`time()` expansion. Metadata values must resolve deterministically.                                                                                                                            |
-| `src/app/image.spec.ts`    |     8 | File validation, small-file passthrough, SVG/GIF handling, canvas downscaling, and fallbacks. Notes store images in `localStorage`, so size behaviour matters.                                                                                                  |
+| Spec                       | Tests | Coverage and rationale                                                                                                                                                                                                                                                              |
+| -------------------------- | ----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/latex.spec.ts`    |    17 | Math detection, delimiter stripping, full-document bodies, `\\[2ex]` row spacing, starred commands, `tabular`/`tabular*`/`tabularx`, width columns, `\\cline` fallback, wrappers, and `multline`/`eqnarray`. These are the failure modes that produced blank or corrupted previews. |
+| `src/app/markdown.spec.ts` |    19 | Inline code/links/URLs, safe href filtering, fences, the `$$`, code-fence, and `#>` shortcuts, heading and list prefixes, and block-shortcut parsing. Keeps the deliberately small Markdown subset predictable.                                                                     |
+| `src/app/models.spec.ts`   |    28 | Factories, text/image column visibility, plain-text extraction, block conversion, note creation, and the block menu. The store and every editor depend on these shapes.                                                                                                             |
+| `src/app/format.spec.ts`   |    12 | Relative times, block labels, word counts, and `now()`/`today()`/`time()` expansion. Metadata values must resolve deterministically.                                                                                                                                                |
+| `src/app/image.spec.ts`    |     8 | File validation, small-file passthrough, SVG/GIF handling, canvas downscaling, and fallbacks. Notes store images in `localStorage`, so size behaviour matters.                                                                                                                      |
 
 ### State and sync
 
@@ -95,7 +95,7 @@ It provides only the browser APIs jsdom does not implement:
 | `src/app/subnote-block/subnote-block.spec.ts`          |    18 | Inline child title, block/column edits, opening the child, adding blocks, splitting, fences, shortcuts, nested sub-notes, deletion, missing-child state, menu dismissal/focus, reordering, and depth.                                                |
 | `src/app/note-outline/note-outline.spec.ts`            |     5 | Heading extraction, inline-markup stripping, indentation, selection, collapse, and empty state.                                                                                                                                                      |
 | `src/app/app.spec.ts`                                  |    11 | Empty state, first-note creation, document title, mobile sidebar, layout preferences, outline overlay/Escape, media-query changes, storage-read fallback, and the shortcut cheat sheet.                                                              |
-| `src/app/ui/latex.spec.ts`                             |     7 | Real KaTeX rendering, full documents, repeated `\newcommand`, safe links, blocked `javascript:` links, blocked images/HTML extensions, and empty sources.                                                                                            |
+| `src/app/ui/latex.spec.ts`                             |     8 | Real KaTeX rendering, full documents, repeated `\newcommand`, safe links, blocked `javascript:` links, blocked images/HTML extensions, empty sources, and tables with partial rules.                                                                 |
 | `src/app/ui/markdown-inline.spec.ts`                   |     4 | Plain text, inline code, safe links, and unsafe-link fallback.                                                                                                                                                                                       |
 | `src/app/ui/highlight.spec.ts`                         |     5 | HTML escaping, known languages, auto-detection, and component rendering.                                                                                                                                                                             |
 | `src/app/ui/icon.spec.ts`                              |     4 | Default and explicit sizes, stroke width, per-name paths, and unknown names.                                                                                                                                                                         |

@@ -86,6 +86,10 @@ export function normalizeLatex(source: string): string {
   value = value.replace(/\\renewcommand\*\{/g, '\\renewcommand{');
   value = value.replace(/\\providecommand\*\{/g, '\\providecommand{');
 
+  // KaTeX has no \cline. A full rule is the closest supported equivalent and
+  // keeps the table rendering instead of leaving an inline error in a cell.
+  value = value.replace(/\\cline\s*\{[^{}]*\}/g, '\\hline');
+
   value = normalizeTabular(value);
 
   // Wrappers KaTeX does not understand. Removing them keeps the contents.

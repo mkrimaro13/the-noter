@@ -78,4 +78,21 @@ describe('Latex', () => {
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.latex')?.innerHTML).toBe('');
   });
+
+  it('renders tables that use unsupported partial rules', async () => {
+    const element = await render(String.raw`\begin{tabular}{|r|l|}
+  \hline
+  7C0 & hexadecimal \\
+  3700 & octal \\ \cline{2-2}
+  11111000000 & binary \\
+  \hline \hline
+  1984 & decimal \\
+  \hline
+\end{tabular}`);
+
+    expect(element.querySelector('.katex')).not.toBeNull();
+    expect(element.textContent).toContain('hexadecimal');
+    expect(element.textContent).toContain('1984');
+    expect(element.textContent).not.toContain('cline');
+  });
 });

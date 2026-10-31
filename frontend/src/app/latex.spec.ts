@@ -81,6 +81,24 @@ E = mc^2
     );
   });
 
+  it('replaces unsupported cline rules with a full hline', () => {
+    const source = String.raw`\begin{tabular}{|r|l|}
+  \hline
+  7C0 & hexadecimal \\
+  3700 & octal \\ \cline{2-2}
+  11111000000 & binary \\
+  \hline \hline
+  1984 & decimal \\
+  \hline
+\end{tabular}`;
+
+    const normalized = normalizeLatex(source);
+
+    expect(normalized).not.toContain(String.raw`\cline`);
+    expect(normalized).toContain(String.raw`\hline`);
+    expect(normalized).toContain(String.raw`\begin{array}{|r|l|}`);
+  });
+
   it('normalizes width-based array columns', () => {
     expect(normalizeLatex(String.raw`\begin{tabular}{|p{3cm}|m{2cm}|} a & b \end{tabular}`)).toBe(
       String.raw`\begin{array}{|l|l|} a & b \end{array}`,
