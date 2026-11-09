@@ -88,7 +88,9 @@ describe('NoteEditor', () => {
   it('renders the note title, metadata, blocks, and word count', () => {
     const seeded = note('n_note', {
       title: 'My note',
-      metadata: [{ id: 'm_1', key: 'status', value: 'draft' }],
+      metadata: [
+        { id: 'm_1', key: 'status', value: 'draft', type: 'text', options: [] },
+      ],
       blocks: [
         createBlock('text', { columns: ['one two'], columnCount: 1 }),
         createBlock('heading', { text: 'three', level: 2 }),
@@ -152,6 +154,54 @@ describe('NoteEditor', () => {
 
     element.querySelector<HTMLButtonElement>('.meta-remove')!.click();
     expect(store.notes().find((item) => item.id === 'n_note')!.metadata).toEqual([]);
+  });
+
+  it('renders and edits typed metadata fields', () => {
+    const { fixture, store, refresh } = setup([
+      note('n_note', {
+        metadata: [
+          { id: 'm_num', key: 'score', value: '5', type: 'number', options: [] },
+          { id: 'm_check', key: 'done', value: 'false', type: 'checkbox', options: [] },
+          {
+            id: 'm_select',
+            key: 'status',
+            value: 'Draft',
+            type: 'select',
+            options: ['Draft', 'Done'],
+          },
+          { id: 'm_date', key: 'due', value: '2026-11-09', type: 'date', options: [] },
+          { id: 'm_url', key: 'link', value: 'https://example.com', type: 'url', options: [] },
+        ],
+      }),
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+    const metadata = () => store.notes().find((item) => item.id === 'n_note')!.metadata;
+
+    expect(element.querySelector<HTMLSelectElement>('.meta-type')!.value).toBe('number');
+    expect(element.querySelector<HTMLInputElement>('.meta-value')!.type).toBe('number');
+
+    const checkbox = element.querySelector<HTMLInputElement>('.meta-checkbox')!;
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event('change'));
+    expect(metadata()[1].value).toBe('true');
+
+    const select = element.querySelector<HTMLSelectElement>('.meta-select')!;
+    select.value = 'Done';
+    select.dispatchEvent(new Event('change'));
+    expect(metadata()[2].value).toBe('Done');
+
+    const options = element.querySelector<HTMLInputElement>('.meta-options')!;
+    expect(options.value).toBe('Draft, Done');
+    options.value = 'Todo, Doing';
+    options.dispatchEvent(new Event('change'));
+    expect(metadata()[2]).toMatchObject({ value: 'Todo', options: ['Todo', 'Doing'] });
+
+    const type = element.querySelector<HTMLSelectElement>('.meta-type')!;
+    type.value = 'checkbox';
+    type.dispatchEvent(new Event('change'));
+    refresh();
+    expect(metadata()[0]).toMatchObject({ type: 'checkbox', value: 'false' });
+    expect(element.querySelectorAll('.meta-checkbox')).toHaveLength(2);
   });
 
   it('adds blocks from the add menu', () => {
@@ -686,7 +736,9 @@ describe('NoteEditor', () => {
   it('commits metadata values on blur and leaves plain values alone', () => {
     const { fixture, store } = setup([
       note('n_note', {
-        metadata: [{ id: 'm_1', key: 'status', value: 'draft' }],
+        metadata: [
+          { id: 'm_1', key: 'status', value: 'draft', type: 'text', options: [] },
+        ],
       }),
     ]);
     const element = fixture.nativeElement as HTMLElement;

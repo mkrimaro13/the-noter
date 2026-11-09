@@ -145,7 +145,9 @@ describe('NoteStore', () => {
   it('filters by title, metadata, and block content', () => {
     const byTitle = note('n_title', { title: 'Grocery list' });
     const byMeta = note('n_meta', {
-      metadata: [{ id: 'm_1', key: 'project', value: 'needle' }],
+      metadata: [
+        { id: 'm_1', key: 'project', value: 'needle', type: 'text', options: [] },
+      ],
     });
     const byText = note('n_text', {
       blocks: [block('b_1', { type: 'text', columns: ['a needle here'], columnCount: 1 })],
@@ -211,11 +213,56 @@ describe('NoteStore', () => {
     store.updateMeta('n_a', metaId, { key: 'status', value: 'done' });
     expect(store.notes()[0].metadata).toEqual([
       creation[0],
-      { id: metaId, key: 'status', value: 'done' },
+      { id: metaId, key: 'status', value: 'done', type: 'text', options: [] },
     ]);
 
     store.removeMeta('n_a', metaId);
     expect(store.notes()[0].metadata).toEqual(creation);
+  });
+
+  it('switches metadata types and keeps values valid', () => {
+    const { store } = setup([note('n_a')]);
+    const metaId = store.addMeta('n_a');
+    const meta = () => store.notes()[0].metadata.find((item) => item.id === metaId)!;
+
+    store.updateMeta('n_a', metaId, { value: '42' });
+    store.setMetaType('n_a', metaId, 'number');
+    expect(meta()).toMatchObject({ type: 'number', value: '42' });
+
+    store.updateMeta('n_a', metaId, { value: 'not a number' });
+    store.setMetaType('n_a', metaId, 'number');
+    expect(meta()).toMatchObject({ type: 'number', value: '' });
+
+    store.updateMeta('n_a', metaId, { value: '2026-11-09' });
+    store.setMetaType('n_a', metaId, 'date');
+    expect(meta()).toMatchObject({ type: 'date', value: '2026-11-09' });
+
+    store.updateMeta('n_a', metaId, { value: 'yes' });
+    store.setMetaType('n_a', metaId, 'checkbox');
+    expect(meta()).toMatchObject({ type: 'checkbox', value: 'false' });
+  });
+
+  it('parses select options and keeps the current value valid', () => {
+    const { store } = setup([note('n_a')]);
+    const metaId = store.addMeta('n_a');
+    const meta = () => store.notes()[0].metadata.find((item) => item.id === metaId)!;
+
+    store.setMetaType('n_a', metaId, 'select');
+    expect(meta()).toMatchObject({
+      type: 'select',
+      value: 'Option 1',
+      options: ['Option 1'],
+    });
+
+    store.updateMetaOptions('n_a', metaId, 'Draft, Review, Done, Draft');
+    expect(meta()).toMatchObject({
+      value: 'Draft',
+      options: ['Draft', 'Review', 'Done'],
+    });
+
+    store.updateMeta('n_a', metaId, { value: 'Done' });
+    store.updateMetaOptions('n_a', metaId, 'Draft, Review');
+    expect(meta()).toMatchObject({ value: 'Draft' });
   });
 
   it('keeps full image sources when setting an icon', () => {
@@ -858,7 +905,12 @@ describe('NoteStore', () => {
     expect(malformed.coverLayout).toBe('content');
     expect(malformed.coverPosition).toEqual({ x: 100, y: 50 });
     expect(malformed.metadata).toHaveLength(1);
-    expect(malformed.metadata[0]).toMatchObject({ key: 'k', value: '' });
+    expect(malformed.metadata[0]).toMatchObject({
+      key: 'k',
+      value: '',
+      type: 'text',
+      options: [],
+    });
 
     const normalized = store.notes().find((item) => item.id === 'n_blocks')!;
     expect(normalized.coverLayout).toBe('landscape');

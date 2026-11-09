@@ -163,7 +163,7 @@ endurecimiento para producción.
 
 #### P1.5 — Metadatos
 
-- [ ] Tipos: texto, número, fecha, URL, select, checkbox.
+- [x] Tipos: texto, número, fecha, URL, select, checkbox.
 - [ ] Campos automáticos: creación, última edición, palabras.
 - [ ] Filtros/ordenación por metadatos y visualización en tarjetas/sidebar.
 - [ ] Plantillas de metadatos por tipo de nota.
@@ -285,7 +285,7 @@ endurecimiento para producción.
 | 4 | Command palette (`Ctrl/Cmd + K`) | ✅ Completada | `feat(navigation): etapa 4 - command palette` |
 | 5 | Scrollspy del outline | ✅ Completada | `feat(outline): etapa 5 - resaltado de seccion activa` |
 | 6 | Mover/reparentar notas y persistir árbol | ✅ Completada | `feat(notes): etapa 6 - mover notas y persistir arbol` |
-| 7 | Metadatos tipados | ⏳ Pendiente | — |
+| 7 | Metadatos tipados | ✅ Completada | `feat(metadata): etapa 7 - metadatos tipados` |
 | 8 | Búsqueda de iconos y cover por URL | ⏳ Pendiente | — |
 | 9 | Almacenamiento de imágenes como attachments + IndexedDB | ⏳ Pendiente | — |
 | 10 | Papelera, undo/redo y export Markdown/PDF | ⏳ Pendiente | — |
@@ -295,6 +295,6 @@ endurecimiento para producción.
 
 ### Próxima etapa
 
-**Etapa 7 — Metadatos tipados.** Ampliar los metadatos de `label → value` a tipos explícitos
-(texto, número, fecha, URL, select y checkbox), con edición validada en el editor y persistencia
-compatible con las notas existentes.
+**Etapa 8 — Búsqueda de iconos y cover por URL.** Añadir un selector de iconos con búsqueda,
+categorías y recientes, y permitir establecer la portada desde una URL con validación y manejo de
+errores.

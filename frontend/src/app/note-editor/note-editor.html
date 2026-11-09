@@ -241,37 +241,97 @@
 
       <section class="metadata" aria-label="Note metadata">
         @for (meta of note().metadata; track meta.id; let mi = $index) {
-          <div class="meta-row">
-            <input
-              class="meta-key"
-              type="text"
-              placeholder="label"
-              [attr.aria-label]="'Metadata label ' + (mi + 1)"
-              [value]="meta.key"
-              (input)="updateMetaKey(meta.id, $event)"
-              [appFocus]="focusMetaId() === meta.id"
-              (appFocusDone)="focusMetaId.set(null)"
-            />
-            <input
-              class="meta-value"
-              type="text"
-              placeholder="value · now()"
-              title="Time helpers: now(), today(), time(), or now(YYYY-MM-DD HH:mm). Press Enter or leave the field to resolve."
-              [attr.aria-label]="'Metadata value ' + (mi + 1)"
-              [value]="meta.value"
-              (input)="updateMetaValue(meta.id, $event)"
-              (keydown.enter)="commitMetaValue(meta.id, $event)"
-              (blur)="commitMetaValue(meta.id, $event)"
-            />
-            <button
-              class="meta-remove"
-              type="button"
-              (click)="removeMeta(meta.id)"
-              [attr.aria-label]="'Remove metadata ' + (mi + 1)"
-              title="Remove"
-            >
-              <app-icon name="x" [size]="12" />
-            </button>
+          <div class="meta-entry">
+            <div class="meta-row" [attr.data-type]="meta.type">
+              <input
+                class="meta-key"
+                type="text"
+                placeholder="label"
+                [attr.aria-label]="'Metadata label ' + (mi + 1)"
+                [value]="meta.key"
+                (input)="updateMetaKey(meta.id, $event)"
+                [appFocus]="focusMetaId() === meta.id"
+                (appFocusDone)="focusMetaId.set(null)"
+              />
+              <select
+                class="meta-type"
+                (change)="changeMetaType(meta.id, $event)"
+                [attr.aria-label]="'Metadata type ' + (mi + 1)"
+                [title]="'Field type: ' + metaTypeLabel(meta.type)"
+              >
+                @for (type of metaTypes; track type) {
+                  <option [value]="type" [selected]="type === meta.type">
+                    {{ metaTypeLabel(type) }}
+                  </option>
+                }
+              </select>
+
+              @switch (meta.type) {
+                @case ('checkbox') {
+                  <label class="meta-check">
+                    <input
+                      class="meta-value meta-checkbox"
+                      type="checkbox"
+                      [checked]="meta.value === 'true'"
+                      (change)="updateMetaChecked(meta.id, $event)"
+                      [attr.aria-label]="'Metadata value ' + (mi + 1)"
+                    />
+                    <span>{{ meta.value === 'true' ? 'Yes' : 'No' }}</span>
+                  </label>
+                }
+                @case ('select') {
+                  <select
+                    class="meta-value meta-select"
+                    (change)="updateMetaValue(meta.id, $event)"
+                    [attr.aria-label]="'Metadata value ' + (mi + 1)"
+                  >
+                    @for (option of meta.options; track $index) {
+                      <option [value]="option" [selected]="option === meta.value">
+                        {{ option }}
+                      </option>
+                    }
+                  </select>
+                }
+                @default {
+                  <input
+                    class="meta-value"
+                    [type]="metaInputType(meta.type)"
+                    [placeholder]="meta.type === 'url' ? 'https://…' : 'value · now()'"
+                    [title]="
+                      meta.type === 'url'
+                        ? 'Time helpers are also available: now(), today(), time().'
+                        : 'Time helpers: now(), today(), time(), or now(YYYY-MM-DD HH:mm). Press Enter or leave the field to resolve.'
+                    "
+                    [attr.aria-label]="'Metadata value ' + (mi + 1)"
+                    [value]="meta.value"
+                    (input)="updateMetaValue(meta.id, $event)"
+                    (keydown.enter)="commitMetaValue(meta.id, meta.type, $event)"
+                    (blur)="commitMetaValue(meta.id, meta.type, $event)"
+                  />
+                }
+              }
+
+              <button
+                class="meta-remove"
+                type="button"
+                (click)="removeMeta(meta.id)"
+                [attr.aria-label]="'Remove metadata ' + (mi + 1)"
+                title="Remove"
+              >
+                <app-icon name="x" [size]="12" />
+              </button>
+            </div>
+
+            @if (meta.type === 'select') {
+              <input
+                class="meta-options"
+                type="text"
+                placeholder="Options, comma separated"
+                [attr.aria-label]="'Metadata options ' + (mi + 1)"
+                [value]="metaOptions(meta)"
+                (change)="updateMetaOptions(meta.id, $event)"
+              />
+            }
           </div>
         }
         <button class="meta-add" type="button" (click)="addMeta()">

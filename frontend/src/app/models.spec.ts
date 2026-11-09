@@ -3,11 +3,14 @@ import {
   BLOCK_MENU,
   MAX_TEXT_COLUMNS,
   blockPlainText,
+  coerceMetaValue,
   convertBlock,
   createBlock,
   createImageColumn,
   createNote,
   isImageIcon,
+  normalizeMetaType,
+  parseMetaOptions,
   uid,
   visibleImageColumnText,
   visibleImageColumns,
@@ -306,6 +309,34 @@ describe('createNote', () => {
 
   it('links a child note to its parent', () => {
     expect(createNote('n_parent').parentId).toBe('n_parent');
+  });
+});
+
+describe('metadata helpers', () => {
+  it('falls back to text for unknown stored types', () => {
+    expect(normalizeMetaType('number')).toBe('number');
+    expect(normalizeMetaType('checkbox')).toBe('checkbox');
+    expect(normalizeMetaType('nope')).toBe('text');
+    expect(normalizeMetaType(undefined)).toBe('text');
+  });
+
+  it('coerces values to the selected field type', () => {
+    expect(coerceMetaValue('number', ' 12.5 ')).toBe('12.5');
+    expect(coerceMetaValue('number', 'abc')).toBe('');
+    expect(coerceMetaValue('date', '2026-11-09')).toBe('2026-11-09');
+    expect(coerceMetaValue('date', '09/11/2026')).toBe('');
+    expect(coerceMetaValue('checkbox', 'true')).toBe('true');
+    expect(coerceMetaValue('checkbox', 'yes')).toBe('false');
+    expect(coerceMetaValue('text', 'anything')).toBe('anything');
+  });
+
+  it('parses unique, trimmed select options', () => {
+    expect(parseMetaOptions(' Draft, Review ,, Done, Draft ')).toEqual([
+      'Draft',
+      'Review',
+      'Done',
+    ]);
+    expect(parseMetaOptions('')).toEqual([]);
   });
 });
 

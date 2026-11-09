@@ -64,10 +64,56 @@ export interface NoteBlock {
   noteId: string;
 }
 
+export type NoteMetaType = 'text' | 'number' | 'date' | 'url' | 'select' | 'checkbox';
+
+/** Field kinds available to note metadata, in menu order. */
+export const NOTE_META_TYPES: readonly NoteMetaType[] = [
+  'text',
+  'number',
+  'date',
+  'url',
+  'select',
+  'checkbox',
+];
+
 export interface NoteMeta {
   id: string;
   key: string;
   value: string;
+  type: NoteMetaType;
+  /** Choices shown for `select` metadata. */
+  options: string[];
+}
+
+/** Coerces unknown stored input into a supported metadata type. */
+export function normalizeMetaType(value: unknown): NoteMetaType {
+  return NOTE_META_TYPES.includes(value as NoteMetaType) ? (value as NoteMetaType) : 'text';
+}
+
+/** Keeps a value meaningful when the user switches a field's type. */
+export function coerceMetaValue(type: NoteMetaType, value: string): string {
+  switch (type) {
+    case 'checkbox':
+      return value === 'true' ? 'true' : 'false';
+    case 'number': {
+      const trimmed = value.trim();
+      return trimmed !== '' && Number.isFinite(Number(trimmed)) ? trimmed : '';
+    }
+    case 'date': {
+      const trimmed = value.trim();
+      return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : '';
+    }
+    default:
+      return value;
+  }
+}
+
+/** Splits the comma-separated options field used by select metadata. */
+export function parseMetaOptions(value: string): string[] {
+  return value
+    .split(',')
+    .map((option) => option.trim())
+    .filter((option, index, all) => option.length > 0 && all.indexOf(option) === index);
 }
 
 export interface Note {
@@ -325,7 +371,15 @@ export function createNote(parentId: string | null = null): Note {
     coverLayout: 'content',
     coverPosition: { ...DEFAULT_COVER_POSITION },
     parentId,
-    metadata: [{ id: uid('m'), key: 'creación', value: resolveTimeFunctions('now()') }],
+    metadata: [
+      {
+        id: uid('m'),
+        key: 'creación',
+        value: resolveTimeFunctions('now()'),
+        type: 'text',
+        options: [],
+      },
+    ],
     blocks: [createBlock('text')],
     createdAt: now,
     updatedAt: now,

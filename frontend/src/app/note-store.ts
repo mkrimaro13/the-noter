@@ -14,13 +14,17 @@ import {
   Note,
   NoteBlock,
   NoteMeta,
+  NoteMetaType,
   NoteTreeItem,
   blockPlainText,
+  coerceMetaValue,
   createBlock,
   createImageColumn,
   createNote,
   convertBlock,
   isImageIcon,
+  normalizeMetaType,
+  parseMetaOptions,
   uid,
   visibleImageColumnText,
   visibleTextColumns,
@@ -241,7 +245,7 @@ export class NoteStore {
   }
 
   addMeta(noteId: string): string {
-    const meta: NoteMeta = { id: uid('m'), key: '', value: '' };
+    const meta: NoteMeta = { id: uid('m'), key: '', value: '', type: 'text', options: [] };
     this.mutate(noteId, (note) => ({ ...note, metadata: [...note.metadata, meta] }));
     return meta.id;
   }
@@ -254,6 +258,34 @@ export class NoteStore {
     this.mutate(noteId, (note) => ({
       ...note,
       metadata: note.metadata.map((meta) => (meta.id === metaId ? { ...meta, ...patch } : meta)),
+    }));
+  }
+
+  /** Switches a metadata field's type and adapts its current value. */
+  setMetaType(noteId: string, metaId: string, type: NoteMetaType): void {
+    this.mutate(noteId, (note) => ({
+      ...note,
+      metadata: note.metadata.map((meta) => {
+        if (meta.id !== metaId) return meta;
+        const options =
+          type === 'select' && meta.options.length === 0 ? ['Option 1'] : meta.options;
+        let value = coerceMetaValue(type, meta.value);
+        if (type === 'select' && !options.includes(value)) value = options[0] ?? '';
+        return { ...meta, type, options, value };
+      }),
+    }));
+  }
+
+  /** Replaces the choices of a select field, keeping its value valid. */
+  updateMetaOptions(noteId: string, metaId: string, raw: string): void {
+    const options = parseMetaOptions(raw);
+    this.mutate(noteId, (note) => ({
+      ...note,
+      metadata: note.metadata.map((meta) => {
+        if (meta.id !== metaId) return meta;
+        const value = options.includes(meta.value) ? meta.value : (options[0] ?? '');
+        return { ...meta, options, value };
+      }),
     }));
   }
 
@@ -921,10 +953,17 @@ function normalizeNote(value: unknown): Note | null {
 
 function normalizeMeta(value: unknown): NoteMeta | null {
   if (!isRecord(value)) return null;
+
+  const type = normalizeMetaType(value['type']);
+  const optionsRaw = Array.isArray(value['options']) ? value['options'] : [];
+  const options = optionsRaw.filter((option): option is string => typeof option === 'string');
+
   return {
     id: stringOr(value['id'], uid('m')),
     key: stringOr(value['key'], ''),
-    value: stringOr(value['value'], ''),
+    value: coerceMetaValue(type, stringOr(value['value'], '')),
+    type,
+    options,
   };
 }
 

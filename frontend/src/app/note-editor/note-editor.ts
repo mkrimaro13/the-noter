@@ -20,8 +20,11 @@ import {
   CoverLayout,
   CoverPosition,
   ImageColumnPatch,
+  NOTE_META_TYPES,
   Note,
   NoteBlock,
+  NoteMeta,
+  NoteMetaType,
   createBlock,
   isImageIcon,
   visibleImageColumnText,
@@ -373,6 +376,8 @@ export class NoteEditor {
     this.focusMetaId.set(this.store.addMeta(this.note().id));
   }
 
+  protected readonly metaTypes = NOTE_META_TYPES;
+
   protected updateMetaKey(metaId: string, event: Event): void {
     this.store.updateMeta(this.note().id, metaId, {
       key: (event.target as HTMLInputElement).value,
@@ -381,12 +386,64 @@ export class NoteEditor {
 
   protected updateMetaValue(metaId: string, event: Event): void {
     this.store.updateMeta(this.note().id, metaId, {
-      value: (event.target as HTMLInputElement).value,
+      value: (event.target as HTMLInputElement | HTMLSelectElement).value,
     });
   }
 
+  protected updateMetaChecked(metaId: string, event: Event): void {
+    this.store.updateMeta(this.note().id, metaId, {
+      value: (event.target as HTMLInputElement).checked ? 'true' : 'false',
+    });
+  }
+
+  protected changeMetaType(metaId: string, event: Event): void {
+    this.store.setMetaType(
+      this.note().id,
+      metaId,
+      (event.target as HTMLSelectElement).value as NoteMetaType,
+    );
+  }
+
+  protected updateMetaOptions(metaId: string, event: Event): void {
+    this.store.updateMetaOptions(this.note().id, metaId, (event.target as HTMLInputElement).value);
+  }
+
+  protected metaInputType(type: NoteMetaType): string {
+    switch (type) {
+      case 'number':
+      case 'date':
+      case 'url':
+        return type;
+      default:
+        return 'text';
+    }
+  }
+
+  protected metaTypeLabel(type: NoteMetaType): string {
+    switch (type) {
+      case 'number':
+        return 'Number';
+      case 'date':
+        return 'Date';
+      case 'url':
+        return 'URL';
+      case 'select':
+        return 'Select';
+      case 'checkbox':
+        return 'Checkbox';
+      default:
+        return 'Text';
+    }
+  }
+
+  protected metaOptions(meta: NoteMeta): string {
+    return meta.options.join(', ');
+  }
+
   /** Time helpers are expanded when the field is committed, not while typing. */
-  protected commitMetaValue(metaId: string, event: Event): void {
+  protected commitMetaValue(metaId: string, type: NoteMetaType, event: Event): void {
+    if (type !== 'text' && type !== 'url') return;
+
     const input = event.target as HTMLInputElement;
     const resolved = resolveTimeFunctions(input.value);
     if (resolved === input.value) return;
