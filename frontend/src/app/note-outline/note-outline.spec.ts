@@ -16,6 +16,20 @@ function noteWithHeadings(): Note {
   };
 }
 
+function rect(top: number): DOMRect {
+  return {
+    top,
+    bottom: top,
+    left: 0,
+    right: 0,
+    width: 0,
+    height: 0,
+    x: 0,
+    y: top,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
 function setup(note: Note = noteWithHeadings()) {
   const fixture = TestBed.createComponent(NoteOutline);
   fixture.componentRef.setInput('note', note);
@@ -47,6 +61,51 @@ describe('NoteOutline', () => {
     expect(links[1].style.paddingLeft).toBe('24px');
     expect(links[2].getAttribute('data-level')).toBe('6');
     expect(links[2].style.paddingLeft).toBe('60px');
+  });
+
+  it('highlights the heading at the current scroll position', () => {
+    const note = noteWithHeadings();
+    const container = document.createElement('div');
+    container.className = 'main-scroll';
+    const tops = new Map<string, number>();
+
+    note.blocks.forEach((block, index) => {
+      if (block.type !== 'heading') return;
+      tops.set(block.id, index * 100);
+      const wrapper = document.createElement('app-note-block');
+      wrapper.setAttribute('data-block-id', block.id);
+      const heading = document.createElement('textarea');
+      heading.className = 'heading-input';
+      heading.getBoundingClientRect = () => rect(tops.get(block.id) ?? 0);
+      wrapper.appendChild(heading);
+      container.appendChild(wrapper);
+    });
+
+    Object.defineProperty(container, 'scrollTop', { value: 0, writable: true });
+    Object.defineProperty(container, 'clientHeight', { value: 400, configurable: true });
+    Object.defineProperty(container, 'scrollHeight', { value: 1000, configurable: true });
+    container.getBoundingClientRect = () => rect(0);
+    document.body.appendChild(container);
+
+    try {
+      const fixture = setup(note);
+      const links = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+        '.outline-link',
+      );
+
+      expect(links[0].classList.contains('active')).toBe(true);
+
+      tops.set(note.blocks[0].id, -200);
+      tops.set(note.blocks[1].id, 40);
+      container.dispatchEvent(new Event('scroll'));
+      fixture.detectChanges();
+
+      expect(links[0].classList.contains('active')).toBe(false);
+      expect(links[1].classList.contains('active')).toBe(true);
+      expect(links[1].getAttribute('aria-current')).toBe('location');
+    } finally {
+      container.remove();
+    }
   });
 
   it('emits the heading id when clicked', () => {

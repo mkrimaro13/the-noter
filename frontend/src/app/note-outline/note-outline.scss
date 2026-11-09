@@ -129,6 +129,16 @@
   background: var(--accent-soft);
 }
 
+.outline-link.active {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+
+.outline-link.active .outline-arrow {
+  color: var(--accent);
+  opacity: 1;
+}
+
 .outline-link:focus-visible {
   outline: 2px solid var(--accent-line);
   outline-offset: 1px;

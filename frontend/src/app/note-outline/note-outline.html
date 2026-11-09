@@ -28,7 +28,9 @@
               <button
                 class="outline-link"
                 type="button"
+                [class.active]="heading.id === activeId()"
                 [attr.data-level]="heading.level"
+                [attr.aria-current]="heading.id === activeId() ? 'location' : null"
                 [style.padding-left.px]="indent(heading.level)"
                 (click)="selected.emit(heading.id)"
                 [attr.aria-label]="'Go to heading ' + heading.level + ': ' + heading.text"

@@ -148,7 +148,7 @@ endurecimiento para producción.
 
 #### P1.3 — Outline
 
-- [ ] Scrollspy: resaltar el heading visible.
+- [x] Scrollspy: resaltar el heading visible.
 - [ ] Incluir headings de sub-notas.
 - [ ] Colapsar/expandir secciones y navegación por teclado.
 - [ ] **Done when:** el outline refleja la posición actual y permite navegar secciones largas.
@@ -283,7 +283,7 @@ endurecimiento para producción.
 | 2 | LaTeX inline en texto, headings, listas y columnas | ✅ Completada | `feat(latex): etapa 2 - matematicas inline en texto` |
 | 3 | Export/import JSON de backup | ✅ Completada | `feat(data): etapa 3 - exportar e importar backup JSON` |
 | 4 | Command palette (`Ctrl/Cmd + K`) | ✅ Completada | `feat(navigation): etapa 4 - command palette` |
-| 5 | Scrollspy del outline | ⏳ Pendiente | — |
+| 5 | Scrollspy del outline | ✅ Completada | `feat(outline): etapa 5 - resaltado de seccion activa` |
 | 6 | Mover/reparentar notas y persistir árbol | ⏳ Pendiente | — |
 | 7 | Metadatos tipados | ⏳ Pendiente | — |
 | 8 | Búsqueda de iconos y cover por URL | ⏳ Pendiente | — |
@@ -295,5 +295,6 @@ endurecimiento para producción.
 
 ### Próxima etapa
 
-**Etapa 5 — Scrollspy del outline.** Resaltar el heading visible mientras se desplaza la nota,
-respetando el foco del editor y sin provocar saltos de scroll.
+**Etapa 6 — Mover/reparentar notas y persistir el árbol.** Añadir una acción para mover una nota
+existente a otro padre (o a la raíz), evitar ciclos y recordar el estado expandido/colapsado de la
+sidebar.
