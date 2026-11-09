@@ -171,7 +171,7 @@ endurecimiento para producción.
 
 #### P1.6 — Búsqueda y navegación
 
-- [ ] Command palette (`Ctrl/Cmd + K`).
+- [x] Command palette (`Ctrl/Cmd + K`).
 - [ ] Resaltado de coincidencias y filtros por tipo/fecha/metadato.
 - [ ] Búsquedas guardadas, recientes y favoritos.
 - [ ] **Done when:** encontrar y abrir cualquier nota toma pocos segundos.
@@ -282,7 +282,7 @@ endurecimiento para producción.
 | 1 | Markdown inline completo (negrita, cursiva, tachado, escapes) | ✅ Completada | `feat(markdown): etapa 1 - formato inline completo` |
 | 2 | LaTeX inline en texto, headings, listas y columnas | ✅ Completada | `feat(latex): etapa 2 - matematicas inline en texto` |
 | 3 | Export/import JSON de backup | ✅ Completada | `feat(data): etapa 3 - exportar e importar backup JSON` |
-| 4 | Command palette (`Ctrl/Cmd + K`) | ⏳ Pendiente | — |
+| 4 | Command palette (`Ctrl/Cmd + K`) | ✅ Completada | `feat(navigation): etapa 4 - command palette` |
 | 5 | Scrollspy del outline | ⏳ Pendiente | — |
 | 6 | Mover/reparentar notas y persistir árbol | ⏳ Pendiente | — |
 | 7 | Metadatos tipados | ⏳ Pendiente | — |
@@ -295,6 +295,5 @@ endurecimiento para producción.
 
 ### Próxima etapa
 
-**Etapa 4 — Command palette (`Ctrl/Cmd + K`).** Añadir un buscador global de notas y acciones con
-navegación por teclado, reutilizando la búsqueda del store y sin interferir con los atajos del
-editor.
+**Etapa 5 — Scrollspy del outline.** Resaltar el heading visible mientras se desplaza la nota,
+respetando el foco del editor y sin provocar saltos de scroll.

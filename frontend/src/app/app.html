@@ -95,6 +95,13 @@
     }
   }
 
+  <app-command-palette
+    [open]="paletteOpen()"
+    (closed)="paletteOpen.set(false)"
+    (command)="runCommand($event)"
+    (noteSelected)="selectFromPalette($event)"
+  />
+
   <div class="cheat-sheet-fab">
     <button
       class="cheat-sheet-button"
@@ -134,6 +141,10 @@
           </div>
           <div class="cheat-sheet-section">
             <div class="cheat-sheet-section-title">Keyboard shortcuts</div>
+            <div class="cheat-sheet-row">
+              <span><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd></span
+              ><span>Command palette</span>
+            </div>
             <div class="cheat-sheet-row">
               <span><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd>-<kbd>6</kbd></span
               ><span>Heading H1-H6</span>

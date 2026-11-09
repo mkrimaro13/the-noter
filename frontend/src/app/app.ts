@@ -9,6 +9,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { CommandPalette, type PaletteCommand } from './command-palette/command-palette';
 import { NoteEditor } from './note-editor/note-editor';
 import { NoteOutline } from './note-outline/note-outline';
 import { NoteStore } from './note-store';
@@ -22,12 +23,13 @@ const WIDE_LAYOUT = '(min-width: 1241px)';
 
 @Component({
   selector: 'app-root',
-  imports: [NotesSidebar, NoteEditor, NoteOutline, FontSelector, Icon],
+  imports: [NotesSidebar, NoteEditor, NoteOutline, CommandPalette, FontSelector, Icon],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:keydown.escape)': 'handleEscape()',
+    '(document:keydown)': 'handleKeydown($event)',
   },
 })
 export class App {
@@ -38,6 +40,7 @@ export class App {
   protected readonly outlineOverlay = signal(false);
   protected readonly wideLayout = signal(true);
   protected readonly cheatSheetOpen = signal(false);
+  protected readonly paletteOpen = signal(false);
 
   protected readonly showOutlineInline = computed(
     () => this.store.selectedNote() !== null && this.wideLayout() && this.outlineVisible(),
@@ -138,7 +141,41 @@ export class App {
     this.cheatSheetOpen.set(false);
   }
 
+  protected handleKeydown(event: KeyboardEvent): void {
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      this.paletteOpen.update((open) => !open);
+    }
+  }
+
+  protected selectFromPalette(noteId: string): void {
+    this.store.select(noteId);
+    this.closeSidebar();
+  }
+
+  protected runCommand(command: PaletteCommand): void {
+    switch (command) {
+      case 'new-note':
+        this.store.createNote();
+        break;
+      case 'toggle-notes':
+        this.notesVisible.update((visible) => !visible);
+        break;
+      case 'toggle-outline':
+        if (this.outlineVisible()) {
+          this.hideOutline();
+        } else {
+          this.showOutline();
+        }
+        break;
+    }
+  }
+
   protected handleEscape(): void {
+    if (this.paletteOpen()) {
+      this.paletteOpen.set(false);
+      return;
+    }
     if (this.cheatSheetOpen()) {
       this.cheatSheetOpen.set(false);
       return;

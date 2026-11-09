@@ -42,6 +42,12 @@ function escape(): void {
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 }
 
+function openPalette(): void {
+  document.dispatchEvent(
+    new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }),
+  );
+}
+
 describe('App', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
@@ -249,6 +255,80 @@ describe('App', () => {
     fixture.detectChanges();
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.scrim')).toBeNull();
+  });
+
+  it('opens the command palette with Ctrl+K and closes it with Escape', () => {
+    const { fixture } = setup();
+    const element = fixture.nativeElement as HTMLElement;
+
+    openPalette();
+    fixture.detectChanges();
+    expect(element.querySelector('.palette')).not.toBeNull();
+
+    escape();
+    fixture.detectChanges();
+    expect(element.querySelector('.palette')).toBeNull();
+  });
+
+  it('searches notes from the command palette and selects one', () => {
+    const { fixture, store } = setup([
+      note('n_a', { updatedAt: 1 }),
+      note('n_b', { updatedAt: 2 }),
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    openPalette();
+    fixture.detectChanges();
+
+    const input = element.querySelector<HTMLInputElement>('.palette-input')!;
+    input.value = 'n_b';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    const results = element.querySelectorAll<HTMLButtonElement>('.palette-note');
+    expect(results).toHaveLength(1);
+    results[0].click();
+    fixture.detectChanges();
+
+    expect(store.selectedId()).toBe('n_b');
+    expect(element.querySelector('.palette')).toBeNull();
+  });
+
+  it('runs palette actions with the keyboard', () => {
+    const { fixture, store } = setup();
+    const element = fixture.nativeElement as HTMLElement;
+
+    openPalette();
+    fixture.detectChanges();
+
+    const input = element.querySelector<HTMLInputElement>('.palette-input')!;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    fixture.detectChanges();
+
+    expect(store.total()).toBe(1);
+    expect(element.querySelector('.palette')).toBeNull();
+  });
+
+  it('navigates palette results with the arrow keys', () => {
+    const { fixture, store } = setup([
+      note('n_a', { updatedAt: 1 }),
+      note('n_b', { updatedAt: 2 }),
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    openPalette();
+    fixture.detectChanges();
+
+    const input = element.querySelector<HTMLInputElement>('.palette-input')!;
+    input.value = 'n_';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    fixture.detectChanges();
+
+    expect(store.selectedId()).toBe('n_a');
   });
 
   it('falls back when layout preferences cannot be read', () => {

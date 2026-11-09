@@ -1,0 +1,83 @@
+@if (open()) {
+  <button class="palette-scrim" type="button" aria-label="Close command palette" (click)="close()"></button>
+
+  <div class="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div class="palette-search">
+      <app-icon class="palette-search-icon" name="search" [size]="15" />
+      <input
+        #searchInput
+        class="palette-input"
+        type="text"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="Search notes or run a command…"
+        aria-label="Search notes or run a command"
+        aria-controls="palette-results"
+        [value]="query()"
+        (input)="onQuery($event)"
+        (keydown)="onKeydown($event)"
+      />
+      <kbd class="palette-key">Esc</kbd>
+    </div>
+
+    <div class="palette-results" id="palette-results" role="listbox" aria-label="Results">
+      @if (actions().length > 0) {
+        <div class="palette-section">Actions</div>
+        @for (action of actions(); track action.id; let i = $index) {
+          <button
+            class="palette-row palette-action"
+            type="button"
+            role="option"
+            [attr.aria-selected]="isActive(i)"
+            [class.active]="isActive(i)"
+            (click)="chooseAction(action)"
+            (mouseenter)="selected.set(i)"
+          >
+            <span class="palette-icon"><app-icon name="plus" [size]="14" /></span>
+            <span class="palette-copy">
+              <span class="palette-label">{{ action.label }}</span>
+              <span class="palette-hint">{{ action.hint }}</span>
+            </span>
+          </button>
+        }
+      }
+
+      <div class="palette-section">Notes</div>
+      @for (note of notes(); track note.id; let i = $index) {
+        <button
+          class="palette-row palette-note"
+          type="button"
+          role="option"
+          [attr.aria-selected]="isActive(actions().length + i)"
+          [class.active]="isActive(actions().length + i)"
+          (click)="chooseNote(note)"
+          (mouseenter)="selected.set(actions().length + i)"
+        >
+          <span class="palette-icon">
+            @if (note.icon) {
+              @if (isImageIcon(note.icon)) {
+                <img class="palette-image" [src]="note.icon" alt="" />
+              } @else {
+                <span class="palette-emoji">{{ note.icon }}</span>
+              }
+            } @else {
+              <app-icon name="note" [size]="14" />
+            }
+          </span>
+          <span class="palette-copy">
+            <span class="palette-label">{{ displayTitle(note) }}</span>
+            <span class="palette-hint">{{ note.blocks.length }} blocks</span>
+          </span>
+        </button>
+      } @empty {
+        <p class="palette-empty">No notes match “{{ query() }}”.</p>
+      }
+    </div>
+
+    <div class="palette-footer">
+      <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+      <span><kbd>Enter</kbd> open</span>
+      <span><kbd>Esc</kbd> close</span>
+    </div>
+  </div>
+}

@@ -55,11 +55,14 @@ export class NoteStore {
 
   readonly query = signal('');
 
-  readonly filteredNotes = computed(() => {
-    const query = this.query().trim().toLowerCase();
+  readonly filteredNotes = computed(() => this.search(this.query()));
+
+  /** Notes matching a free-text query across titles, metadata, and writing. */
+  search(value: string): Note[] {
+    const query = value.trim().toLowerCase();
     if (!query) return this.notes();
     return this.notes().filter((note) => matchesQuery(note, query));
-  });
+  }
 
   readonly total = computed(() => this.allNotes().length);
 
