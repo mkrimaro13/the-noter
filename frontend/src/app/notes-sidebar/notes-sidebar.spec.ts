@@ -156,6 +156,74 @@ describe('NotesSidebar', () => {
     expect(titles(element)).toEqual(['Parent', 'Child']);
   });
 
+  it('moves a note to another parent from the move menu', () => {
+    const { fixture, store } = setup([
+      note('n_target', { title: 'Target' }),
+      note('n_move', { title: 'Move me' }),
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+    const row = Array.from(element.querySelectorAll<HTMLElement>('.note-row')).find((item) =>
+      item.querySelector('.note-title')?.textContent?.includes('Move me'),
+    )!;
+
+    row.querySelector<HTMLButtonElement>('.note-move')!.click();
+    fixture.detectChanges();
+
+    const targets = Array.from(
+      element.querySelectorAll<HTMLElement>('.move-target span'),
+    ).map((node) => node.textContent?.trim());
+    expect(targets).toEqual(['Root', 'Target']);
+
+    const target = Array.from(
+      element.querySelectorAll<HTMLButtonElement>('.move-target'),
+    ).find((button) => button.textContent?.includes('Target'))!;
+    target.click();
+    fixture.detectChanges();
+
+    expect(store.notes().find((item) => item.id === 'n_move')?.parentId).toBe('n_target');
+    expect(element.querySelector('.move-menu')).toBeNull();
+    expect(titles(element)).toEqual(['Target', 'Move me']);
+  });
+
+  it('never offers descendants as move targets', () => {
+    const { fixture } = setup([
+      note('n_parent', { title: 'Parent' }),
+      note('n_child', { title: 'Child', parentId: 'n_parent' }),
+      note('n_grand', { title: 'Grand', parentId: 'n_child' }),
+      note('n_other', { title: 'Other' }),
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+    const row = Array.from(element.querySelectorAll<HTMLElement>('.note-row')).find((item) =>
+      item.querySelector('.note-title')?.textContent?.includes('Parent'),
+    )!;
+
+    row.querySelector<HTMLButtonElement>('.note-move')!.click();
+    fixture.detectChanges();
+
+    const targets = Array.from(
+      element.querySelectorAll<HTMLElement>('.move-target span'),
+    ).map((node) => node.textContent?.trim());
+    expect(targets).toEqual(['Root', 'Other']);
+  });
+
+  it('remembers collapsed branches after remounting', () => {
+    const { fixture } = setup([
+      note('n_parent', { title: 'Parent' }),
+      note('n_child', { title: 'Child', parentId: 'n_parent' }),
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    element.querySelector<HTMLButtonElement>('.note-toggle')!.click();
+    fixture.detectChanges();
+    expect(titles(element)).toEqual(['Parent']);
+
+    const second = TestBed.createComponent(NotesSidebar);
+    second.componentRef.setInput('collapsed', false);
+    second.detectChanges();
+
+    expect(titles(second.nativeElement as HTMLElement)).toEqual(['Parent']);
+  });
+
   it('asks before deleting and can cancel', () => {
     const { fixture, store } = setup([note('n_a', { title: 'Alpha' })]);
     const element = fixture.nativeElement as HTMLElement;

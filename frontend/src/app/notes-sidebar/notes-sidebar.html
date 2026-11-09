@@ -144,6 +144,15 @@
           } @else {
             <div class="note-actions">
               <button
+                class="note-move"
+                type="button"
+                (click)="askMove(row.note, $event)"
+                [attr.aria-label]="'Move ' + displayTitle(row.note)"
+                title="Move note"
+              >
+                <app-icon name="move" [size]="13" />
+              </button>
+              <button
                 class="note-nest"
                 type="button"
                 (click)="createChild(row.note, $event)"
@@ -160,6 +169,39 @@
                 title="Delete note"
               >
                 <app-icon name="trash" [size]="13" />
+              </button>
+            </div>
+          }
+
+          @if (movingNote() === row.note.id) {
+            <div class="move-menu" role="menu" aria-label="Move note">
+              <div class="move-menu-title">Move to</div>
+              <div class="move-menu-list">
+                <button
+                  class="move-target"
+                  type="button"
+                  role="menuitem"
+                  [class.current]="row.note.parentId === null"
+                  (click)="moveTo(row.note, null)"
+                >
+                  <app-icon name="note" [size]="12" />
+                  <span>Root</span>
+                </button>
+                @for (target of moveTargets(row.note); track target.id) {
+                  <button
+                    class="move-target"
+                    type="button"
+                    role="menuitem"
+                    [class.current]="row.note.parentId === target.id"
+                    (click)="moveTo(row.note, target.id)"
+                  >
+                    <app-icon name="note" [size]="12" />
+                    <span>{{ displayTitle(target) }}</span>
+                  </button>
+                }
+              </div>
+              <button class="move-cancel" type="button" (click)="movingNote.set(null)">
+                Cancel
               </button>
             </div>
           }

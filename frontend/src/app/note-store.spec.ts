@@ -925,6 +925,51 @@ describe('NoteStore', () => {
         .blocks.map((item) => item.id),
     ).toEqual(['b_empty', 'b_other']);
   });
+
+  it('moves a note under another parent and back to the root', () => {
+    const { store, sync } = setup([
+      note('n_parent'),
+      note('n_other'),
+      note('n_child', { parentId: 'n_parent' }),
+    ]);
+
+    expect(store.moveNote('n_child', 'n_other')).toBe(true);
+    expect(store.notes().find((item) => item.id === 'n_child')?.parentId).toBe('n_other');
+    expect(sync.markDirty).toHaveBeenCalledWith('n_child');
+
+    expect(store.moveNote('n_child', null)).toBe(true);
+    expect(store.notes().find((item) => item.id === 'n_child')?.parentId).toBeNull();
+  });
+
+  it('refuses self-parenting, missing parents, and cycles', () => {
+    const { store, sync } = setup([
+      note('n_parent'),
+      note('n_child', { parentId: 'n_parent' }),
+      note('n_grand', { parentId: 'n_child' }),
+    ]);
+    sync.markDirty.mockClear();
+
+    expect(store.moveNote('n_parent', 'n_parent')).toBe(false);
+    expect(store.moveNote('n_parent', 'n_missing')).toBe(false);
+    expect(store.moveNote('n_missing', 'n_parent')).toBe(false);
+    expect(store.moveNote('n_parent', 'n_grand')).toBe(false);
+    expect(store.moveNote('n_parent', null)).toBe(false);
+    expect(sync.markDirty).not.toHaveBeenCalled();
+  });
+
+  it('collects every nested descendant of a note', () => {
+    const { store } = setup([
+      note('n_parent'),
+      note('n_child', { parentId: 'n_parent' }),
+      note('n_grand', { parentId: 'n_child' }),
+      note('n_other'),
+    ]);
+
+    expect([...store.descendantIds('n_parent')].sort()).toEqual(['n_child', 'n_grand']);
+    expect([...store.descendantIds('n_child')]).toEqual(['n_grand']);
+    expect(store.descendantIds('n_other').size).toBe(0);
+    expect(store.descendantIds('n_missing').size).toBe(0);
+  });
 });
 
 describe('NoteStore backups', () => {

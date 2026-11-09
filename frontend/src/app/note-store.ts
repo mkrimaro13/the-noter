@@ -138,6 +138,46 @@ export class NoteStore {
     return this.notes().filter((note) => note.parentId === noteId);
   }
 
+  /** Every note below `noteId`, used to keep a move from creating a cycle. */
+  descendantIds(noteId: string): Set<string> {
+    const children = new Map<string, string[]>();
+    for (const note of this.allNotes()) {
+      if (!note.parentId) continue;
+      const siblings = children.get(note.parentId) ?? [];
+      siblings.push(note.id);
+      children.set(note.parentId, siblings);
+    }
+
+    const descendants = new Set<string>();
+    const stack = [...(children.get(noteId) ?? [])];
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      if (descendants.has(id)) continue;
+      descendants.add(id);
+      stack.push(...(children.get(id) ?? []));
+    }
+    return descendants;
+  }
+
+  /**
+   * Reparents a note, or makes it a root when `parentId` is null. Returns false
+   * for missing notes, self-parenting, and moves that would create a cycle.
+   */
+  moveNote(noteId: string, parentId: string | null): boolean {
+    if (noteId === parentId) return false;
+
+    const note = this.allNotes().find((item) => item.id === noteId);
+    if (!note) return false;
+    if (parentId !== null) {
+      const exists = this.allNotes().some((item) => item.id === parentId);
+      if (!exists || this.descendantIds(noteId).has(parentId)) return false;
+    }
+    if (note.parentId === parentId) return false;
+
+    this.mutate(noteId, (current) => ({ ...current, parentId }));
+    return true;
+  }
+
   /**
    * The parent chain for a note, outermost first. The visited guard keeps a
    * corrupted stored tree from locking the editor into a loop.

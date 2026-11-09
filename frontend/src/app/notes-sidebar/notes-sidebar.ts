@@ -16,6 +16,8 @@ import { SyncService } from '../sync';
 import { blockCountLabel, relativeTime } from '../format';
 import { Icon } from '../ui/icon';
 
+const COLLAPSED_KEY = 'the-noter.ui.collapsed.v1';
+
 interface SidebarRow {
   note: Note;
   depth: number;
@@ -43,7 +45,8 @@ export class NotesSidebar {
   protected readonly sync = inject(SyncService);
   protected readonly isImageIcon = isImageIcon;
   protected readonly confirmingDelete = signal<string | null>(null);
-  protected readonly collapsedNotes = signal<ReadonlySet<string>>(new Set());
+  protected readonly movingNote = signal<string | null>(null);
+  protected readonly collapsedNotes = signal<ReadonlySet<string>>(loadCollapsed());
   protected readonly backupStatus = signal<string | null>(null);
   private backupStatusTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -105,6 +108,15 @@ export class NotesSidebar {
     effect(() => {
       this.store.selectedId();
       this.confirmingDelete.set(null);
+      this.movingNote.set(null);
+    });
+
+    effect(() => {
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...this.collapsedNotes()]));
+      } catch {
+        // The tree still works for this session if storage is unavailable.
+      }
     });
   }
 
@@ -175,6 +187,28 @@ export class NotesSidebar {
 
   protected cancelConfirm(): void {
     this.confirmingDelete.set(null);
+    this.movingNote.set(null);
+  }
+
+  protected askMove(note: Note, event: Event): void {
+    event.stopPropagation();
+    this.confirmingDelete.set(null);
+    this.movingNote.update((current) => (current === note.id ? null : note.id));
+  }
+
+  /** Notes that can become the parent of `note` without creating a cycle. */
+  protected moveTargets(note: Note): Note[] {
+    const descendants = this.store.descendantIds(note.id);
+    return this.store
+      .notes()
+      .filter((target) => target.id !== note.id && !descendants.has(target.id))
+      .sort((a, b) => this.displayTitle(a).localeCompare(this.displayTitle(b)));
+  }
+
+  protected moveTo(note: Note, parentId: string | null): void {
+    this.store.moveNote(note.id, parentId);
+    if (parentId) this.reveal(parentId);
+    this.movingNote.set(null);
   }
 
   protected subtitle(note: Note): string {
@@ -231,5 +265,17 @@ export class NotesSidebar {
 
   focusExpand(): void {
     this.expandButton()?.nativeElement.focus();
+  }
+}
+
+function loadCollapsed(): ReadonlySet<string> {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY);
+    if (!raw) return new Set();
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((id): id is string => typeof id === 'string'));
+  } catch {
+    return new Set();
   }
 }

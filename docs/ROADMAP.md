@@ -131,8 +131,8 @@ endurecimiento para producción.
 
 #### P1.1 — Anidación
 
-- [ ] Mover/reparentar notas existentes desde la UI.
-- [ ] Persistir el estado expandido/colapsado de la sidebar.
+- [x] Mover/reparentar notas existentes desde la UI.
+- [x] Persistir el estado expandido/colapsado de la sidebar.
 - [ ] Límite de profundidad y mensajes claros ante ciclos.
 - [ ] Navegación padre/hijo más directa en el editor.
 - [ ] **Done when:** se puede reorganizar el árbol completo sin crear notas nuevas.
@@ -284,7 +284,7 @@ endurecimiento para producción.
 | 3 | Export/import JSON de backup | ✅ Completada | `feat(data): etapa 3 - exportar e importar backup JSON` |
 | 4 | Command palette (`Ctrl/Cmd + K`) | ✅ Completada | `feat(navigation): etapa 4 - command palette` |
 | 5 | Scrollspy del outline | ✅ Completada | `feat(outline): etapa 5 - resaltado de seccion activa` |
-| 6 | Mover/reparentar notas y persistir árbol | ⏳ Pendiente | — |
+| 6 | Mover/reparentar notas y persistir árbol | ✅ Completada | `feat(notes): etapa 6 - mover notas y persistir arbol` |
 | 7 | Metadatos tipados | ⏳ Pendiente | — |
 | 8 | Búsqueda de iconos y cover por URL | ⏳ Pendiente | — |
 | 9 | Almacenamiento de imágenes como attachments + IndexedDB | ⏳ Pendiente | — |
@@ -295,6 +295,6 @@ endurecimiento para producción.
 
 ### Próxima etapa
 
-**Etapa 6 — Mover/reparentar notas y persistir el árbol.** Añadir una acción para mover una nota
-existente a otro padre (o a la raíz), evitar ciclos y recordar el estado expandido/colapsado de la
-sidebar.
+**Etapa 7 — Metadatos tipados.** Ampliar los metadatos de `label → value` a tipos explícitos
+(texto, número, fecha, URL, select y checkbox), con edición validada en el editor y persistencia
+compatible con las notas existentes.
