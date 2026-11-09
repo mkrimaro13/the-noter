@@ -540,6 +540,56 @@
   white-space: nowrap;
 }
 
+.backup-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 8px 0;
+}
+
+.backup-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  justify-content: center;
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.backup-action:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line-soft));
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.backup-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.backup-status {
+  margin: 7px 8px 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 @media (max-width: 760px) {
   .sidebar,
   .sidebar.collapsed {

@@ -44,6 +44,8 @@ export class NotesSidebar {
   protected readonly isImageIcon = isImageIcon;
   protected readonly confirmingDelete = signal<string | null>(null);
   protected readonly collapsedNotes = signal<ReadonlySet<string>>(new Set());
+  protected readonly backupStatus = signal<string | null>(null);
+  private backupStatusTimer: ReturnType<typeof setTimeout> | undefined;
 
   /**
    * Every label keeps “Saved locally” first: the browser copy is written before
@@ -182,6 +184,45 @@ export class NotesSidebar {
 
   protected displayTitle(note: Note): string {
     return note.title.trim() || 'Untitled';
+  }
+
+  protected exportBackup(): void {
+    const json = this.store.exportBackup();
+    const date = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `the-noter-backup-${date}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    this.announce(`Exported ${this.store.total()} notes.`);
+  }
+
+  protected async importBackup(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    try {
+      const result = this.store.importBackup(await file.text());
+      this.announce(
+        `Imported ${result.added} new and ${result.updated} updated notes` +
+          (result.skipped > 0 ? `, ${result.skipped} kept local.` : '.'),
+      );
+      this.navigated.emit();
+    } catch (error) {
+      this.announce(error instanceof Error ? error.message : 'Could not import the backup.');
+    }
+  }
+
+  private announce(message: string): void {
+    clearTimeout(this.backupStatusTimer);
+    this.backupStatus.set(message);
+    this.backupStatusTimer = setTimeout(() => this.backupStatus.set(null), 5000);
   }
 
   focusSearch(): void {

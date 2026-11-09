@@ -926,3 +926,83 @@ describe('NoteStore', () => {
     ).toEqual(['b_empty', 'b_other']);
   });
 });
+
+describe('NoteStore backups', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    TestBed.resetTestingModule();
+  });
+
+  it('exports a portable snapshot of the notebook', () => {
+    const { store } = setup([note('n_a', { title: 'A', updatedAt: 10 })]);
+
+    const backup = JSON.parse(store.exportBackup());
+
+    expect(backup.format).toBe('the-noter-backup');
+    expect(backup.version).toBe(1);
+    expect(backup.exportedAt).toEqual(expect.any(String));
+    expect(backup.notes).toHaveLength(1);
+    expect(backup.notes[0]).toMatchObject({ id: 'n_a', title: 'A' });
+  });
+
+  it('imports new notes and replaces newer local copies without duplicating', () => {
+    const { store, sync } = setup([note('n_a', { title: 'Local', updatedAt: 100 })]);
+    const backup = JSON.stringify({
+      notes: [
+        note('n_a', { title: 'Newer', updatedAt: 200 }),
+        note('n_b', { title: 'B', updatedAt: 150 }),
+      ],
+    });
+
+    const result = store.importBackup(backup);
+
+    expect(result).toEqual({ added: 1, updated: 1, skipped: 0 });
+    expect(store.total()).toBe(2);
+    expect(store.notes().find((item) => item.id === 'n_a')?.title).toBe('Newer');
+    expect(sync.markDirty).toHaveBeenCalledWith('n_a');
+    expect(sync.markDirty).toHaveBeenCalledWith('n_b');
+  });
+
+  it('keeps the local copy when the backup is older', () => {
+    const { store, sync } = setup([note('n_a', { title: 'Local', updatedAt: 300 })]);
+    const backup = JSON.stringify({
+      notes: [note('n_a', { title: 'Older', updatedAt: 100 })],
+    });
+
+    const result = store.importBackup(backup);
+
+    expect(result).toEqual({ added: 0, updated: 0, skipped: 1 });
+    expect(store.notes()[0].title).toBe('Local');
+    expect(sync.markDirty).not.toHaveBeenCalled();
+  });
+
+  it('accepts a bare array and re-roots notes with missing parents', () => {
+    const { store } = setup();
+    const backup = JSON.stringify([
+      note('n_child', { parentId: 'n_missing', updatedAt: 1 }),
+    ]);
+
+    const result = store.importBackup(backup);
+
+    expect(result.added).toBe(1);
+    expect(store.notes()[0].parentId).toBeNull();
+    expect(store.noteTree()).toHaveLength(1);
+  });
+
+  it('rejects files that are not backups or contain no notes', () => {
+    const { store } = setup();
+
+    expect(() => store.importBackup('not json')).toThrow();
+    expect(() => store.importBackup(JSON.stringify({ hello: 1 }))).toThrow(
+      'not a The Noter backup',
+    );
+    expect(() => store.importBackup(JSON.stringify({ notes: [] }))).toThrow(
+      'does not contain any valid notes',
+    );
+  });
+});

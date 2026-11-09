@@ -30,6 +30,12 @@ const NOTES_KEY = 'the-noter.notes.v1';
 const SELECTION_KEY = 'the-noter.selection.v1';
 const SAVE_DELAY = 250;
 
+export interface ImportResult {
+  added: number;
+  updated: number;
+  skipped: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class NoteStore {
   private readonly destroyRef = inject(DestroyRef);
@@ -570,6 +576,82 @@ export class NoteStore {
       const next = [...remaining].sort((a, b) => b.updatedAt - a.updatedAt)[0];
       this.selected.set(next?.id ?? null);
     }
+  }
+
+  /** Serializes the whole notebook into a portable JSON backup. */
+  exportBackup(): string {
+    return JSON.stringify(
+      {
+        format: 'the-noter-backup',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        notes: this.allNotes(),
+      },
+      null,
+      2,
+    );
+  }
+
+  /**
+   * Merges a JSON backup into the notebook. Existing notes are only replaced
+   * when the backup copy is newer, so importing the same file twice never
+   * duplicates notes or resurrects an older edit.
+   */
+  importBackup(raw: string): ImportResult {
+    const parsed: unknown = JSON.parse(raw);
+    const notesRaw = Array.isArray(parsed)
+      ? parsed
+      : isRecord(parsed) && Array.isArray(parsed['notes'])
+        ? parsed['notes']
+        : null;
+
+    if (!notesRaw) {
+      throw new Error('This file is not a The Noter backup.');
+    }
+
+    const incoming = new Map<string, Note>();
+    for (const value of notesRaw) {
+      const note = normalizeNote(value);
+      if (note) incoming.set(note.id, note);
+    }
+
+    if (incoming.size === 0) {
+      throw new Error('The backup does not contain any valid notes.');
+    }
+
+    const result: ImportResult = { added: 0, updated: 0, skipped: 0 };
+    const changed: string[] = [];
+
+    this.allNotes.update((notes) => {
+      const next = new Map(notes.map((note) => [note.id, note]));
+
+      for (const note of incoming.values()) {
+        const local = next.get(note.id);
+        if (!local) {
+          next.set(note.id, note);
+          result.added += 1;
+          changed.push(note.id);
+        } else if (note.updatedAt > local.updatedAt) {
+          next.set(note.id, note);
+          result.updated += 1;
+          changed.push(note.id);
+        } else {
+          result.skipped += 1;
+        }
+      }
+
+      return sanitizeParents([...next.values()]);
+    });
+
+    for (const id of changed) this.sync.markDirty(id);
+
+    this.flush();
+
+    if (!this.allNotes().some((note) => note.id === this.selected())) {
+      this.selected.set(this.notes()[0]?.id ?? null);
+    }
+
+    return result;
   }
 
   /**

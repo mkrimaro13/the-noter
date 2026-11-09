@@ -113,7 +113,7 @@ endurecimiento para producción.
 
 - [ ] Papelera con restauración, en vez de borrado definitivo inmediato.
 - [ ] Undo/redo a nivel de nota o bloque.
-- [ ] Export/import JSON completo y backup descargable.
+- [x] Export/import JSON completo y backup descargable.
 - [ ] Export Markdown/PDF/HTML.
 - [ ] **Done when:** un borrado accidental o una nota corrupta se puede recuperar sin tocar
       CouchDB.
@@ -281,7 +281,7 @@ endurecimiento para producción.
 | 0 | Roadmap y checkpoint del trabajo previo | ✅ Completada | `chore: checkpoint current work before roadmap implementation` / `docs: add staged implementation roadmap` |
 | 1 | Markdown inline completo (negrita, cursiva, tachado, escapes) | ✅ Completada | `feat(markdown): etapa 1 - formato inline completo` |
 | 2 | LaTeX inline en texto, headings, listas y columnas | ✅ Completada | `feat(latex): etapa 2 - matematicas inline en texto` |
-| 3 | Export/import JSON de backup | ⏳ Pendiente | — |
+| 3 | Export/import JSON de backup | ✅ Completada | `feat(data): etapa 3 - exportar e importar backup JSON` |
 | 4 | Command palette (`Ctrl/Cmd + K`) | ⏳ Pendiente | — |
 | 5 | Scrollspy del outline | ⏳ Pendiente | — |
 | 6 | Mover/reparentar notas y persistir árbol | ⏳ Pendiente | — |
@@ -295,6 +295,6 @@ endurecimiento para producción.
 
 ### Próxima etapa
 
-**Etapa 3 — Export/import JSON de backup.** Añadir exportación descargable de todo el notebook y
-una importación validada que reemplace o fusione datos sin duplicar notas, con pruebas de ida y
-vuelta.
+**Etapa 4 — Command palette (`Ctrl/Cmd + K`).** Añadir un buscador global de notas y acciones con
+navegación por teclado, reutilizando la búsqueda del store y sin interferir con los atajos del
+editor.

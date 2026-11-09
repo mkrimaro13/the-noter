@@ -175,6 +175,40 @@
       }
     </nav>
 
+    <div class="backup-actions">
+      <button
+        class="backup-action"
+        type="button"
+        (click)="exportBackup()"
+        title="Export a JSON backup"
+        aria-label="Export a JSON backup"
+      >
+        <app-icon name="download" [size]="13" />
+        <span>Export</span>
+      </button>
+      <button
+        class="backup-action"
+        type="button"
+        (click)="importInput.click()"
+        title="Import a JSON backup"
+        aria-label="Import a JSON backup"
+      >
+        <app-icon name="upload" [size]="13" />
+        <span>Import</span>
+      </button>
+      <input
+        #importInput
+        class="backup-input"
+        type="file"
+        accept="application/json,.json"
+        (change)="importBackup($event)"
+        aria-label="Choose a JSON backup to import"
+      />
+    </div>
+    @if (backupStatus()) {
+      <p class="backup-status" aria-live="polite">{{ backupStatus() }}</p>
+    }
+
     <footer class="sidebar-footer">
       <span
         class="save-state"
