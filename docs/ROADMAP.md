@@ -103,7 +103,7 @@ endurecimiento para producción.
 
 - [x] Markdown inline: negrita, cursiva, tachado y escapes.
 - [x] Markdown inline en previews de texto, headings, listas y columnas.
-- [ ] LaTeX inline en texto/headings/listas: `$...$`, `\(...\)`, `$$...$$`.
+- [x] LaTeX inline en texto/headings/listas: `$...$`, `\(...\)`, `$$...$$`.
 - [ ] Blockquote, regla horizontal, task lists, tablas simples y footnotes.
 - [ ] Imágenes Markdown y sanitización de HTML.
 - [ ] **Done when:** se puede escribir una nota mixta con prosa, matemáticas inline y tablas sin
@@ -280,7 +280,7 @@ endurecimiento para producción.
 |-------|---------|--------|--------|
 | 0 | Roadmap y checkpoint del trabajo previo | ✅ Completada | `chore: checkpoint current work before roadmap implementation` / `docs: add staged implementation roadmap` |
 | 1 | Markdown inline completo (negrita, cursiva, tachado, escapes) | ✅ Completada | `feat(markdown): etapa 1 - formato inline completo` |
-| 2 | LaTeX inline en texto, headings, listas y columnas | ⏳ Pendiente | — |
+| 2 | LaTeX inline en texto, headings, listas y columnas | ✅ Completada | `feat(latex): etapa 2 - matematicas inline en texto` |
 | 3 | Export/import JSON de backup | ⏳ Pendiente | — |
 | 4 | Command palette (`Ctrl/Cmd + K`) | ⏳ Pendiente | — |
 | 5 | Scrollspy del outline | ⏳ Pendiente | — |
@@ -295,6 +295,6 @@ endurecimiento para producción.
 
 ### Próxima etapa
 
-**Etapa 2 — LaTeX inline en texto, headings, listas y columnas.** Detectar `$...$`, `\(...\)` y
-`$$...$$` dentro del contenido inline, renderizar con KaTeX sin romper el Markdown existente y
-cubrirlo con pruebas unitarias.
+**Etapa 3 — Export/import JSON de backup.** Añadir exportación descargable de todo el notebook y
+una importación validada que reemplace o fusione datos sin duplicar notas, con pruebas de ida y
+vuelta.

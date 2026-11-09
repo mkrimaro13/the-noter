@@ -71,6 +71,21 @@ describe('Latex', () => {
     expect(element.querySelector('[style="color:red"]')).toBeNull();
   });
 
+  it('renders inline math when display is false', async () => {
+    const fixture = TestBed.createComponent(Latex);
+    fixture.componentRef.setInput('text', 'x^2');
+    fixture.componentRef.setInput('display', false);
+    fixture.detectChanges();
+
+    await vi.waitFor(() => {
+      expect(fixture.nativeElement.querySelector('.katex')).not.toBeNull();
+    });
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.classList.contains('display')).toBe(false);
+    expect(element.querySelector('.latex.inline')).not.toBeNull();
+  });
+
   it('renders nothing for empty source', () => {
     const fixture = TestBed.createComponent(Latex);
     fixture.componentRef.setInput('text', '   ');

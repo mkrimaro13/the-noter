@@ -53,12 +53,12 @@ function isTrustedMathCommand(context: TrustContext): boolean {
   return context.protocol !== undefined && SAFE_LINK_PROTOCOLS.has(context.protocol);
 }
 
-function renderMath(source: string): Promise<string> {
+export function renderMath(source: string, displayMode = true): Promise<string> {
   const normalized = normalizeLatex(source);
   return loadKatex().then((module) => {
     const katex = module.default;
     return katex.renderToString(normalized, {
-      displayMode: true,
+      displayMode,
       throwOnError: false,
       strict: 'ignore',
       trust: isTrustedMathCommand,
@@ -70,24 +70,46 @@ function renderMath(source: string): Promise<string> {
   });
 }
 
-/** Renders a function block's LaTeX source. The block keeps the raw text. */
+/**
+ * Renders LaTeX source. Display math is the default (function blocks); inline
+ * math sets `display` to false and is laid out inside a line of writing.
+ */
 @Component({
   selector: 'app-latex',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<div class="latex" [innerHTML]="html()"></div>`,
+  host: {
+    '[class.display]': 'display()',
+  },
+  template: `<span class="latex" [class.inline]="!display()" [innerHTML]="html()"></span>`,
   styles: `
     :host {
-      display: block;
+      display: inline;
       min-width: 0;
     }
 
+    :host(.display) {
+      display: block;
+    }
+
     .latex {
-      overflow-x: auto;
-      overflow-y: hidden;
-      padding: 3px 0 2px;
       color: var(--ink);
       font-size: 15px;
       line-height: 1.5;
+    }
+
+    .latex.inline {
+      display: inline-block;
+      vertical-align: baseline;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .latex.display {
+      display: block;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 3px 0 2px;
       text-align: center;
     }
 
@@ -98,6 +120,7 @@ function renderMath(source: string): Promise<string> {
 })
 export class Latex {
   readonly text = input.required<string>();
+  readonly display = input(true);
 
   private readonly sanitizer = inject(DomSanitizer);
   private readonly htmlSource = signal('');
@@ -111,6 +134,7 @@ export class Latex {
   constructor() {
     effect(() => {
       const source = stripMathDelimiters(this.text());
+      const displayMode = this.display();
       const token = ++this.renderToken;
 
       if (!source) {
@@ -118,7 +142,7 @@ export class Latex {
         return;
       }
 
-      void renderMath(source)
+      void renderMath(source, displayMode)
         .then((rendered) => {
           if (token === this.renderToken) {
             this.htmlSource.set(rendered);

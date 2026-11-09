@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MarkdownInline } from './markdown-inline';
 
 function render(text: string): HTMLElement {
@@ -60,5 +60,26 @@ describe('MarkdownInline', () => {
 
     expect(code.querySelector('.md-bold .md-code')?.textContent).toBe('npm test');
     expect(link.querySelector('.md-italic a')?.textContent).toBe('docs');
+  });
+
+  it('renders inline math with KaTeX', async () => {
+    const element = render('energy $E = mc^2$ here');
+
+    await vi.waitFor(() => {
+      expect(element.querySelector('.md-math .katex')).not.toBeNull();
+    });
+
+    expect(element.textContent).toContain('energy');
+    expect(element.textContent).toContain('here');
+  });
+
+  it('renders display math from double dollars', async () => {
+    const element = render('$$\\frac{a}{b}$$');
+
+    await vi.waitFor(() => {
+      expect(element.querySelector('.md-math .katex')).not.toBeNull();
+    });
+
+    expect(element.querySelector('.md-math .latex')?.classList.contains('inline')).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { InlineToken, parseInline } from '../markdown';
+import { Latex } from './latex';
 
 /**
  * Renders the small inline Markdown subset next to an editor field. The raw
@@ -8,6 +9,7 @@ import { InlineToken, parseInline } from '../markdown';
 @Component({
   selector: 'app-markdown-inline',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [Latex],
   template: `
     @for (token of tokens(); track $index) {
       <span [class]="markClasses(token)">
@@ -24,6 +26,9 @@ import { InlineToken, parseInline } from '../markdown';
               tabindex="-1"
               >{{ token.text }}</a
             >
+          }
+          @case ('math') {
+            <app-latex class="md-math" [text]="token.text" [display]="token.display" />
           }
           @default {
             <span>{{ token.text }}</span>

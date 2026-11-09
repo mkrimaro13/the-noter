@@ -10,7 +10,8 @@ export type InlineMark = 'bold' | 'italic' | 'strike';
 export type InlineToken =
   | { kind: 'text'; text: string; marks?: InlineMark[] }
   | { kind: 'code'; text: string; marks?: InlineMark[] }
-  | { kind: 'link'; text: string; href: string; marks?: InlineMark[] };
+  | { kind: 'link'; text: string; href: string; marks?: InlineMark[] }
+  | { kind: 'math'; text: string; display: boolean; marks?: InlineMark[] };
 
 export interface FenceShortcut {
   language: string;
@@ -85,6 +86,18 @@ function parseSegment(value: string, marks: InlineMark[]): InlineToken[] {
 
   while (index < value.length) {
     const char = value[index];
+
+    if (char === '$' || (char === '\\' && (value[index + 1] === '(' || value[index + 1] === '['))) {
+      const math = readMath(value, index);
+      if (math) {
+        flush();
+        tokens.push(
+          withMarks({ kind: 'math', text: math.text, display: math.display }, marks),
+        );
+        index = math.end;
+        continue;
+      }
+    }
 
     if (char === '\\' && index + 1 < value.length && ESCAPABLE.has(value[index + 1])) {
       buffer += value[index + 1];
@@ -216,6 +229,68 @@ function findCodeEnd(value: string, from: number): number {
       continue;
     }
     if (value[index] === '`') return index;
+  }
+  return -1;
+}
+
+interface MathSpan {
+  text: string;
+  display: boolean;
+  end: number;
+}
+
+/**
+ * Reads `$…$`, `$$…$$`, `\(…\)`, or `\[…\]` math at the start position.
+ * Currency such as `$5 and $10` is left alone because the content cannot start
+ * or end with whitespace, and single-dollar math never crosses a line.
+ */
+function readMath(value: string, start: number): MathSpan | null {
+  if (value.startsWith('$$', start)) {
+    const close = findUnescaped(value, '$$', start + 2);
+    if (close === -1) return null;
+    const text = value.slice(start + 2, close).trim();
+    return text.length > 0 ? { text, display: true, end: close + 2 } : null;
+  }
+
+  if (value[start] === '$') {
+    let index = start + 1;
+    while (index < value.length && value[index] !== '\n') {
+      if (value[index] === '\\') {
+        index += 2;
+        continue;
+      }
+      if (value[index] === '$') {
+        const raw = value.slice(start + 1, index);
+        if (raw.length === 0 || /^\s/.test(raw) || /\s$/.test(raw)) return null;
+        return { text: raw.trim(), display: false, end: index + 1 };
+      }
+      index += 1;
+    }
+    return null;
+  }
+
+  const opening = value.slice(start, start + 2);
+  const closing = opening === '\\(' ? '\\)' : opening === '\\[' ? '\\]' : null;
+  if (!closing) return null;
+
+  const close = findUnescaped(value, closing, start + 2);
+  if (close === -1) return null;
+
+  const text = value.slice(start + 2, close).trim();
+  return text.length > 0
+    ? { text, display: opening === '\\[', end: close + 2 }
+    : null;
+}
+
+function findUnescaped(value: string, token: string, from: number): number {
+  let index = from;
+  while (index < value.length) {
+    if (value.startsWith(token, index)) return index;
+    if (value[index] === '\\') {
+      index += 2;
+      continue;
+    }
+    index += 1;
   }
   return -1;
 }

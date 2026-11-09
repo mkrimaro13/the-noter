@@ -98,6 +98,35 @@ describe('parseInline', () => {
       { kind: 'text', text: '**bold?**' },
     ]);
   });
+
+  it('parses inline and display math delimiters', () => {
+    expect(parseInline('$x^2$')).toEqual([
+      { kind: 'math', text: 'x^2', display: false },
+    ]);
+    expect(parseInline('$$\\frac{a}{b}$$')).toEqual([
+      { kind: 'math', text: '\\frac{a}{b}', display: true },
+    ]);
+    expect(parseInline('\\(a + b\\)')).toEqual([
+      { kind: 'math', text: 'a + b', display: false },
+    ]);
+    expect(parseInline('\\[a + b\\]')).toEqual([
+      { kind: 'math', text: 'a + b', display: true },
+    ]);
+  });
+
+  it('keeps currency and unmatched dollars as text', () => {
+    expect(parseInline('cost $5 and $10')).toEqual([
+      { kind: 'text', text: 'cost $5 and $10' },
+    ]);
+    expect(parseInline('$x')).toEqual([{ kind: 'text', text: '$x' }]);
+    expect(parseInline('\\$5')).toEqual([{ kind: 'text', text: '$5' }]);
+  });
+
+  it('marks math nested inside emphasis', () => {
+    expect(parseInline('**$x$**')).toEqual([
+      { kind: 'math', text: 'x', display: false, marks: ['bold'] },
+    ]);
+  });
 });
 
 describe('inline helpers', () => {
