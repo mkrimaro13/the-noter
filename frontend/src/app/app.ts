@@ -13,6 +13,7 @@ import { NoteEditor } from './note-editor/note-editor';
 import { NoteOutline } from './note-outline/note-outline';
 import { NoteStore } from './note-store';
 import { NotesSidebar } from './notes-sidebar/notes-sidebar';
+import { FontSelector } from './ui/font-selector/font-selector';
 import { Icon } from './ui/icon';
 
 const NOTES_VISIBLE_KEY = 'the-noter.ui.notes-visible';
@@ -21,7 +22,7 @@ const WIDE_LAYOUT = '(min-width: 1241px)';
 
 @Component({
   selector: 'app-root',
-  imports: [NotesSidebar, NoteEditor, NoteOutline, Icon],
+  imports: [NotesSidebar, NoteEditor, NoteOutline, FontSelector, Icon],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

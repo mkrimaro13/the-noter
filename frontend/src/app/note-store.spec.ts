@@ -194,19 +194,49 @@ describe('NoteStore', () => {
     store.setTitle('n_a', 'New title');
     store.setIcon('n_a', 'x'.repeat(40));
     store.setCover('n_a', 'data:image/png;base64,abc');
+    store.setCoverLayout('n_a', 'landscape');
 
     const updated = store.notes()[0];
     expect(updated.title).toBe('New title');
     expect(updated.icon).toHaveLength(16);
     expect(updated.cover).toBe('data:image/png;base64,abc');
+    expect(updated.coverLayout).toBe('landscape');
     expect(sync.markDirty).toHaveBeenCalledWith('n_a');
+
+    const creation = updated.metadata;
+    expect(creation).toHaveLength(1);
+    expect(creation[0]).toMatchObject({ key: 'creación' });
 
     const metaId = store.addMeta('n_a');
     store.updateMeta('n_a', metaId, { key: 'status', value: 'done' });
-    expect(store.notes()[0].metadata).toEqual([{ id: metaId, key: 'status', value: 'done' }]);
+    expect(store.notes()[0].metadata).toEqual([
+      creation[0],
+      { id: metaId, key: 'status', value: 'done' },
+    ]);
 
     store.removeMeta('n_a', metaId);
-    expect(store.notes()[0].metadata).toEqual([]);
+    expect(store.notes()[0].metadata).toEqual(creation);
+  });
+
+  it('keeps full image sources when setting an icon', () => {
+    const { store } = setup([note('n_a')]);
+    const source = `data:image/png;base64,${'a'.repeat(120)}`;
+
+    store.setIcon('n_a', source);
+    expect(store.notes()[0].icon).toBe(source);
+
+    store.setIcon('n_a', 'x'.repeat(40));
+    expect(store.notes()[0].icon).toHaveLength(16);
+  });
+
+  it('clamps the cover framing and resets it when the cover changes', () => {
+    const { store } = setup([note('n_a')]);
+
+    store.setCoverPosition('n_a', 140, -20);
+    expect(store.notes()[0].coverPosition).toEqual({ x: 100, y: 0 });
+
+    store.setCover('n_a', 'data:image/png;base64,abc');
+    expect(store.notes()[0].coverPosition).toEqual({ x: 50, y: 50 });
   });
 
   it('gives two edits in the same millisecond distinct timestamps', () => {
@@ -786,12 +816,15 @@ describe('NoteStore', () => {
         {
           id: 'n_malformed',
           title: 5,
+          coverLayout: 'diagonal',
+          coverPosition: { x: 140, y: 'nope' },
           metadata: [null, { key: 'k', value: 7 }],
           blocks: 'nope',
           updatedAt: 5,
         },
         {
           id: 'n_blocks',
+          coverLayout: 'landscape',
           blocks: [
             null,
             { id: 'b_text', type: 'text', columns: [1, 'ok'], columnCount: 2 },
@@ -822,10 +855,15 @@ describe('NoteStore', () => {
     const malformed = store.notes().find((item) => item.id === 'n_malformed')!;
     expect(malformed.title).toBe('');
     expect(malformed.blocks).toEqual([]);
+    expect(malformed.coverLayout).toBe('content');
+    expect(malformed.coverPosition).toEqual({ x: 100, y: 50 });
     expect(malformed.metadata).toHaveLength(1);
     expect(malformed.metadata[0]).toMatchObject({ key: 'k', value: '' });
 
-    const blocks = store.notes().find((item) => item.id === 'n_blocks')!.blocks;
+    const normalized = store.notes().find((item) => item.id === 'n_blocks')!;
+    expect(normalized.coverLayout).toBe('landscape');
+    expect(normalized.coverPosition).toEqual({ x: 50, y: 50 });
+    const blocks = normalized.blocks;
     expect(blocks.map((item) => item.id)).toEqual(['b_text', 'b_list', 'b_image', 'b_image_cols']);
     expect(blocks[0].columns).toEqual(['ok', '']);
     expect(blocks[1].items).toEqual(['']);

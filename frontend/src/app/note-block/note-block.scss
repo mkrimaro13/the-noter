@@ -86,7 +86,7 @@
   border: 0;
   background: transparent;
   color: var(--ink);
-  font-family: var(--font-serif);
+  font-family: var(--font-writing);
   outline: none;
   overflow: hidden;
   resize: none;
@@ -102,7 +102,7 @@
 
 .text-preview {
   padding: 3px 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-writing);
   font-size: 18px;
   font-weight: 400;
   letter-spacing: -0.003em;
@@ -197,7 +197,7 @@
 
 .heading-preview {
   padding: 8px 0 3px;
-  font-family: var(--font-serif);
+  font-family: var(--font-writing);
   font-size: 27px;
   font-weight: 600;
   letter-spacing: -0.017em;
@@ -435,14 +435,14 @@
   border: 0;
   background: transparent;
   color: var(--ink);
-  font-family: var(--font-serif);
+  font-family: var(--font-writing);
   font-size: 17.5px;
   line-height: 1.6;
 }
 
 .list-preview {
   padding: 3px 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-writing);
   font-size: 17.5px;
   line-height: 1.6;
 }
@@ -648,7 +648,7 @@
 
 .function-mark {
   color: var(--accent);
-  font-family: var(--font-serif);
+  font-family: var(--font-writing);
   font-size: 15px;
   font-style: italic;
   line-height: 0.8;

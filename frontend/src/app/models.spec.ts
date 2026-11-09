@@ -7,6 +7,7 @@ import {
   createBlock,
   createImageColumn,
   createNote,
+  isImageIcon,
   uid,
   visibleImageColumnText,
   visibleImageColumns,
@@ -44,6 +45,21 @@ describe('createBlock', () => {
     expect(block.text).toBe('Title');
     expect(block.level).toBe(3);
     expect(block.type).toBe('heading');
+  });
+});
+
+describe('isImageIcon', () => {
+  it('recognises data URLs, links, and blob sources', () => {
+    expect(isImageIcon('data:image/png;base64,abc')).toBe(true);
+    expect(isImageIcon('https://example.com/icon.png')).toBe(true);
+    expect(isImageIcon('http://example.com/icon.png')).toBe(true);
+    expect(isImageIcon('blob:https://example.com/abc')).toBe(true);
+  });
+
+  it('leaves emoji and short text icons alone', () => {
+    expect(isImageIcon('📝')).toBe(false);
+    expect(isImageIcon('★')).toBe(false);
+    expect(isImageIcon('')).toBe(false);
   });
 });
 
@@ -277,9 +293,15 @@ describe('createNote', () => {
     expect(note.id.startsWith('n_')).toBe(true);
     expect(note.parentId).toBeNull();
     expect(note.title).toBe('');
+    expect(note.coverLayout).toBe('content');
+    expect(note.coverPosition).toEqual({ x: 50, y: 50 });
     expect(note.blocks).toHaveLength(1);
     expect(note.blocks[0].type).toBe('text');
     expect(note.createdAt).toBe(note.updatedAt);
+    expect(note.metadata).toHaveLength(1);
+    expect(note.metadata[0].key).toBe('creación');
+    expect(note.metadata[0].value).not.toBe('now()');
+    expect(note.metadata[0].value.length).toBeGreaterThan(0);
   });
 
   it('links a child note to its parent', () => {

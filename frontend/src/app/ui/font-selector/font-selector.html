@@ -1,0 +1,23 @@
+<div class="font-selector">
+  <span class="font-label">Typeface</span>
+  <div class="font-options" role="group" aria-label="Note typeface">
+    <button
+      class="font-option font-option--serif"
+      type="button"
+      (click)="select('serif')"
+      [attr.aria-pressed]="typography.writingFont() === 'serif'"
+      title="Serif: the original editorial typeface"
+    >
+      Serif
+    </button>
+    <button
+      class="font-option font-option--sans"
+      type="button"
+      (click)="select('sans')"
+      [attr.aria-pressed]="typography.writingFont() === 'sans'"
+      title="Sans: a rounded, friendly typeface"
+    >
+      Sans
+    </button>
+  </div>
+</div>

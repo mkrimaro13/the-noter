@@ -136,6 +136,7 @@ describe('App', () => {
     expect(element.querySelector('.shell')?.classList.contains('notes-hidden')).toBe(true);
     expect(element.querySelector('app-note-outline')).toBeNull();
     expect(element.querySelector('.outline-rail')).not.toBeNull();
+    expect(element.querySelector('.outline-rail-shell app-font-selector')).not.toBeNull();
   });
 
   it('opens the outline as an overlay on narrow layouts and closes it', () => {

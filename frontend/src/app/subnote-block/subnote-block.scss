@@ -87,6 +87,13 @@
   line-height: 1;
 }
 
+.subnote-mark-image {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .subnote-title {
   flex: 1;
   min-width: 0;

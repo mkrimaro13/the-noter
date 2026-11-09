@@ -10,7 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { Note, NoteTreeItem } from '../models';
+import { Note, NoteTreeItem, isImageIcon } from '../models';
 import { NoteStore } from '../note-store';
 import { SyncService } from '../sync';
 import { blockCountLabel, relativeTime } from '../format';
@@ -41,6 +41,7 @@ export class NotesSidebar {
 
   protected readonly store = inject(NoteStore);
   protected readonly sync = inject(SyncService);
+  protected readonly isImageIcon = isImageIcon;
   protected readonly confirmingDelete = signal<string | null>(null);
   protected readonly collapsedNotes = signal<ReadonlySet<string>>(new Set());
 

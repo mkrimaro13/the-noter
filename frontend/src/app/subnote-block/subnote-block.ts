@@ -19,6 +19,7 @@ import {
   BlockType,
   ImageColumnPatch,
   NoteBlock as NoteBlockData,
+  isImageIcon,
 } from '../models';
 import { NoteStore } from '../note-store';
 import { Focus } from '../ui/focus';
@@ -68,6 +69,7 @@ export class SubnoteBlock {
   readonly focused = output<void>();
 
   protected readonly store = inject(NoteStore);
+  protected readonly isImageIcon = isImageIcon;
   protected readonly blockMenu = BLOCK_MENU;
   protected readonly menuOpen = signal(false);
   protected readonly focusBlockId = signal<string | null>(null);

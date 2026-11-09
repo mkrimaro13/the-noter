@@ -56,6 +56,11 @@ cp .env.example .env      # replace both passwords
 docker compose up -d --build
 ```
 
+> If the build prints `buildx Docker CLI plugin not found: falling back to the classic builder`,
+> that is a host-level Docker CLI plugin, not a repository setting. Install Docker Buildx (for
+> example `sudo apt install docker-buildx-plugin`) or run
+> `DOCKER_BUILDKIT=0 docker compose up -d --build` to use the classic builder without the warning.
+
 | Service  | URL                     | Notes                                              |
 | -------- | ----------------------- | -------------------------------------------------- |
 | Frontend | `http://127.0.0.1:8080` | Static production build served by nginx            |

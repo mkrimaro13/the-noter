@@ -3,6 +3,9 @@
 :root {
   --font-ui: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-serif: 'Newsreader Variable', ui-serif, Georgia, 'Times New Roman', serif;
+  --font-sans-writing: 'Nunito Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Writing text follows the typeface chosen in the right-hand bar. */
+  --font-writing: var(--font-serif);
 
   --paper: #f3f0ea;
   --surface: #fbfaf7;
@@ -59,6 +62,10 @@
 
     color-scheme: dark;
   }
+}
+
+:root[data-writing-font='sans'] {
+  --font-writing: var(--font-sans-writing);
 }
 
 *,

@@ -61,12 +61,27 @@ function findMenuItem(element: HTMLElement, label: string): HTMLButtonElement {
   )!;
 }
 
+/** Image decoding is controlled so icon uploads/links can succeed or fail deterministically. */
+function stubImage(loads: boolean): void {
+  class FakeImage {
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+
+    set src(_value: string) {
+      queueMicrotask(() => (loads ? this.onload?.() : this.onerror?.()));
+    }
+  }
+
+  vi.stubGlobal('Image', FakeImage);
+}
+
 describe('NoteEditor', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     TestBed.resetTestingModule();
   });
 
@@ -110,7 +125,7 @@ describe('NoteEditor', () => {
   });
 
   it('adds, edits, resolves, and removes metadata', () => {
-    const { fixture, store, refresh } = setup([note('n_note')]);
+    const { fixture, store, refresh } = setup([note('n_note', { metadata: [] })]);
     const element = fixture.nativeElement as HTMLElement;
 
     element.querySelector<HTMLButtonElement>('.meta-add')!.click();
@@ -232,6 +247,68 @@ describe('NoteEditor', () => {
     fixture.detectChanges();
     element.querySelector<HTMLButtonElement>('.icon-remove')!.click();
     expect(store.notes().find((item) => item.id === 'n_note')!.icon).toBe('');
+  });
+
+  it('uses an uploaded file as an image icon', async () => {
+    stubImage(true);
+    const { fixture, store, refresh } = setup([note('n_note')]);
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector<HTMLButtonElement>('.icon-add')!.click();
+    fixture.detectChanges();
+
+    const picker = element.querySelector<HTMLInputElement>('.icon-picker')!;
+    const file = new File(['image'], 'icon.png', { type: 'image/png' });
+    Object.defineProperty(picker, 'files', { configurable: true, value: [file] });
+    picker.dispatchEvent(new Event('change'));
+
+    await vi.waitFor(() => {
+      expect(store.notes().find((item) => item.id === 'n_note')!.icon).toMatch(/^data:image\/png/);
+    });
+
+    refresh();
+    expect(element.querySelector<HTMLImageElement>('.note-icon-image')?.src).toMatch(
+      /^data:image\/png/,
+    );
+  });
+
+  it('uses an image link as an icon', async () => {
+    stubImage(true);
+    const { fixture, store } = setup([note('n_note')]);
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector<HTMLButtonElement>('.icon-add')!.click();
+    fixture.detectChanges();
+
+    const input = element.querySelector<HTMLInputElement>('.icon-image .icon-input')!;
+    input.value = 'https://example.com/icon.png';
+    element.querySelector<HTMLButtonElement>('.icon-image .icon-set')!.click();
+
+    await vi.waitFor(() => {
+      expect(store.notes().find((item) => item.id === 'n_note')!.icon).toBe(
+        'https://example.com/icon.png',
+      );
+    });
+  });
+
+  it('warns when an image icon cannot be loaded and asks for another image', async () => {
+    stubImage(false);
+    const { fixture, store } = setup([note('n_note', { icon: '' })]);
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector<HTMLButtonElement>('.icon-add')!.click();
+    fixture.detectChanges();
+
+    const input = element.querySelector<HTMLInputElement>('.icon-image .icon-input')!;
+    input.value = 'https://example.com/missing.png';
+    element.querySelector<HTMLButtonElement>('.icon-image .icon-set')!.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(element.querySelector('.icon-error')?.textContent).toContain(
+        "We couldn't load that image.",
+      );
+    });
+    expect(element.querySelector('.icon-error')?.textContent).toContain('choose another image');
+    expect(store.notes().find((item) => item.id === 'n_note')!.icon).toBe('');
+    expect(element.querySelector('.icon-menu')).not.toBeNull();
   });
 
   it('removes a cover and reports a bad cover file', async () => {
@@ -487,6 +564,88 @@ describe('NoteEditor', () => {
       expect(store.notes().find((item) => item.id === 'n_note')!.cover).toMatch(/^data:image\/png/);
     });
     expect(drop.defaultPrevented).toBe(true);
+  });
+
+  it('switches between contained and landscape covers', () => {
+    const { fixture, store, refresh } = setup([
+      note('n_note', { cover: 'data:image/png;base64,abc' }),
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+    const layoutButton = (label: string) =>
+      Array.from(element.querySelectorAll<HTMLButtonElement>('.layout-option')).find((button) =>
+        button.textContent?.includes(label),
+      )!;
+
+    expect(element.querySelector('.note-cover--content')).not.toBeNull();
+    expect(element.querySelector('.note-cover--landscape')).toBeNull();
+    expect(layoutButton('Contenido').getAttribute('aria-pressed')).toBe('true');
+
+    layoutButton('Apaisado').click();
+    refresh();
+
+    expect(store.notes().find((item) => item.id === 'n_note')!.coverLayout).toBe('landscape');
+    expect(element.querySelector('.editor')!.classList.contains('cover-landscape')).toBe(true);
+    expect(element.querySelector('.note-cover--landscape')).not.toBeNull();
+    expect(layoutButton('Apaisado').getAttribute('aria-pressed')).toBe('true');
+
+    layoutButton('Contenido').click();
+    refresh();
+
+    expect(store.notes().find((item) => item.id === 'n_note')!.coverLayout).toBe('content');
+    expect(element.querySelector('.editor')!.classList.contains('cover-landscape')).toBe(false);
+    expect(element.querySelector('.note-cover--content')).not.toBeNull();
+  });
+
+  it('moves the cover image while readjusting it', () => {
+    const { fixture, store, refresh } = setup([
+      note('n_note', { cover: 'data:image/png;base64,abc' }),
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+    const image = element.querySelector<HTMLImageElement>('.note-cover img')!;
+    Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 1600 });
+    Object.defineProperty(image, 'naturalHeight', { configurable: true, value: 400 });
+    image.getBoundingClientRect = () => ({
+      width: 400,
+      height: 200,
+      top: 0,
+      left: 0,
+      right: 400,
+      bottom: 200,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    const adjust = element.querySelector<HTMLButtonElement>('.cover-adjust')!;
+    adjust.click();
+    fixture.detectChanges();
+    expect(element.querySelector('.note-cover--adjusting')).not.toBeNull();
+    expect(adjust.getAttribute('aria-pressed')).toBe('true');
+    expect(element.querySelector('.cover-adjust-hint')).not.toBeNull();
+    expect(image.style.objectPosition).toBe('50% 50%');
+
+    image.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, clientX: 100, clientY: 100, button: 0 }),
+    );
+    image.dispatchEvent(
+      new MouseEvent('pointermove', { bubbles: true, clientX: 200, clientY: 100 }),
+    );
+    image.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 200, clientY: 100 }));
+
+    expect(store.notes().find((item) => item.id === 'n_note')!.coverPosition).toEqual({
+      x: 25,
+      y: 50,
+    });
+
+    refresh();
+    expect(element.querySelector<HTMLImageElement>('.note-cover img')!.style.objectPosition).toBe(
+      '25% 50%',
+    );
+
+    adjust.click();
+    refresh();
+    expect(element.querySelector('.note-cover--adjusting')).toBeNull();
+    expect(element.querySelector('.cover-adjust-hint')).toBeNull();
   });
 
   it('closes the icon menu and ignores blank custom icons', () => {

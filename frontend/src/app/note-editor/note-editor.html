@@ -1,317 +1,417 @@
-<article class="editor">
+<article
+  class="editor"
+  [class.cover-landscape]="note().cover !== '' && note().coverLayout === 'landscape'"
+>
   <h1 class="visually-hidden">{{ note().title.trim() || 'Untitled note' }}</h1>
 
-  <header class="note-header">
-    @if (note().cover) {
-      <div class="note-cover" (dragover)="onCoverDragOver($event)" (drop)="onCoverDrop($event)">
-        <img [src]="note().cover" alt="" />
-        <div class="cover-actions">
-          <button
-            class="cover-replace"
-            type="button"
-            (click)="browseCover()"
-            aria-label="Replace cover"
-            title="Replace cover"
-          >
-            <app-icon name="upload" [size]="12" />
-            Replace cover
-          </button>
-          <button
-            class="cover-remove"
-            type="button"
-            (click)="removeCover()"
-            aria-label="Remove cover"
-            title="Remove cover"
-          >
-            <app-icon name="trash" [size]="12" />
-            Remove
-          </button>
-        </div>
+  @if (note().cover) {
+    <div
+      class="note-cover"
+      [class.note-cover--content]="note().coverLayout === 'content'"
+      [class.note-cover--landscape]="note().coverLayout === 'landscape'"
+      [class.note-cover--adjusting]="coverAdjusting()"
+      (dragover)="onCoverDragOver($event)"
+      (drop)="onCoverDrop($event)"
+    >
+      <img
+        [src]="note().cover"
+        alt=""
+        [style.object-position]="coverObjectPosition()"
+        (pointerdown)="startCoverDrag($event)"
+        (pointermove)="moveCover($event)"
+        (pointerup)="endCoverDrag($event)"
+        (pointercancel)="cancelCoverDrag($event)"
+      />
+      <div class="cover-actions">
+        <button
+          class="cover-adjust"
+          type="button"
+          (click)="toggleCoverAdjust()"
+          [attr.aria-pressed]="coverAdjusting()"
+          [attr.aria-label]="
+            coverAdjusting() ? 'Terminar de reajustar la portada' : 'Reajustar la portada'
+          "
+          [title]="coverAdjusting() ? 'Listo' : 'Mover la imagen dentro de la portada'"
+        >
+          <app-icon name="move" [size]="12" />
+          {{ coverAdjusting() ? 'Listo' : 'Reajustar' }}
+        </button>
+        <button
+          class="cover-replace"
+          type="button"
+          (click)="browseCover()"
+          aria-label="Replace cover"
+          title="Replace cover"
+        >
+          <app-icon name="upload" [size]="12" />
+          Replace cover
+        </button>
+        <button
+          class="cover-remove"
+          type="button"
+          (click)="removeCover()"
+          aria-label="Remove cover"
+          title="Remove cover"
+        >
+          <app-icon name="trash" [size]="12" />
+          Remove
+        </button>
       </div>
-    }
-
-    @if (ancestors().length > 0) {
-      <nav class="breadcrumbs" aria-label="Note location">
-        @for (parent of ancestors(); track parent.id) {
-          <button
-            class="crumb"
-            type="button"
-            (click)="openNote(parent)"
-            [title]="displayTitle(parent)"
-          >
-            {{ displayTitle(parent) }}
-          </button>
-          <span class="crumb-sep" aria-hidden="true">/</span>
-        }
-        <span class="crumb-current" aria-current="page">{{ displayTitle(note()) }}</span>
-      </nav>
-    }
-
-    <input
-      #coverPicker
-      class="cover-picker"
-      type="file"
-      accept="image/*"
-      hidden
-      (change)="onCoverFile($event)"
-    />
-
-    <div class="topbar">
-      <span>Edited {{ relative(note().updatedAt) }}</span>
-      <span class="topbar-tools">
-        <button class="cover-add" type="button" (click)="browseCover()">
-          <app-icon name="image" [size]="11" />
-          {{ note().cover ? 'Change cover' : 'Add cover' }}
-        </button>
-        <button
-          class="icon-add"
-          type="button"
-          (click)="toggleIconMenu()"
-          [attr.aria-expanded]="iconMenuOpen()"
-          aria-haspopup="dialog"
-        >
-          <app-icon name="smile" [size]="12" />
-          {{ note().icon ? 'Change icon' : 'Add icon' }}
-        </button>
-        @if (words() > 0) {
-          <span class="word-count">{{ words() }} {{ words() === 1 ? 'word' : 'words' }}</span>
-        }
-      </span>
+      @if (coverAdjusting()) {
+        <p class="cover-adjust-hint">
+          <app-icon name="move" [size]="12" />
+          Arrastra la imagen para encuadrarla
+        </p>
+      }
     </div>
+  }
 
-    @if (coverError()) {
-      <p class="cover-error" role="alert">{{ coverError() }}</p>
-    }
-
-    <div class="title-row">
-      @if (note().icon) {
-        <button
-          class="note-icon"
-          type="button"
-          (click)="toggleIconMenu()"
-          [attr.aria-label]="'Change note icon, currently ' + note().icon"
-          [attr.aria-expanded]="iconMenuOpen()"
-          aria-haspopup="dialog"
-          title="Change icon"
-        >
-          {{ note().icon }}
-        </button>
+  <div class="editor-content">
+    <header class="note-header">
+      @if (ancestors().length > 0) {
+        <nav class="breadcrumbs" aria-label="Note location">
+          @for (parent of ancestors(); track parent.id) {
+            <button
+              class="crumb"
+              type="button"
+              (click)="openNote(parent)"
+              [title]="displayTitle(parent)"
+            >
+              {{ displayTitle(parent) }}
+            </button>
+            <span class="crumb-sep" aria-hidden="true">/</span>
+          }
+          <span class="crumb-current" aria-current="page">{{ displayTitle(note()) }}</span>
+        </nav>
       }
 
       <input
-        class="title"
-        type="text"
-        placeholder="Untitled note"
-        aria-label="Note title"
-        [value]="note().title"
-        (input)="onTitleInput($event)"
-        [appFocus]="store.pendingTitleFocus() === note().id"
-        (appFocusDone)="store.clearTitleFocus()"
+        #coverPicker
+        class="cover-picker"
+        type="file"
+        accept="image/*"
+        hidden
+        (change)="onCoverFile($event)"
       />
 
-      @if (iconMenuOpen()) {
-        <div class="icon-backdrop" (click)="closeIconMenu()" aria-hidden="true"></div>
-        <div class="icon-menu" role="dialog" aria-label="Choose note icon">
-          <p class="icon-hint">Choose an icon</p>
-          <div class="icon-grid">
-            @for (choice of iconChoices; track choice) {
+      <div class="topbar">
+        <span>Edited {{ relative(note().updatedAt) }}</span>
+        <span class="topbar-tools">
+          <button class="cover-add" type="button" (click)="browseCover()">
+            <app-icon name="image" [size]="11" />
+            {{ note().cover ? 'Change cover' : 'Add cover' }}
+          </button>
+          @if (note().cover) {
+            <span class="cover-layout" role="group" aria-label="Cover layout">
               <button
-                class="icon-choice"
+                class="layout-option"
                 type="button"
-                (click)="chooseIcon(choice)"
-                [attr.aria-label]="'Use icon ' + choice"
-                [attr.aria-pressed]="note().icon === choice"
+                (click)="chooseCoverLayout('content')"
+                [attr.aria-pressed]="note().coverLayout === 'content'"
+                title="Contenido: la portada ocupa el ancho de lectura"
               >
-                {{ choice }}
+                Contenido
               </button>
+              <button
+                class="layout-option"
+                type="button"
+                (click)="chooseCoverLayout('landscape')"
+                [attr.aria-pressed]="note().coverLayout === 'landscape'"
+                title="Apaisado: la portada ocupa todo el ancho"
+              >
+                Apaisado
+              </button>
+            </span>
+          }
+          <button
+            class="icon-add"
+            type="button"
+            (click)="toggleIconMenu()"
+            [attr.aria-expanded]="iconMenuOpen()"
+            aria-haspopup="dialog"
+          >
+            <app-icon name="smile" [size]="12" />
+            {{ note().icon ? 'Change icon' : 'Add icon' }}
+          </button>
+          @if (words() > 0) {
+            <span class="word-count">{{ words() }} {{ words() === 1 ? 'word' : 'words' }}</span>
+          }
+        </span>
+      </div>
+
+      @if (coverError()) {
+        <p class="cover-error" role="alert">{{ coverError() }}</p>
+      }
+
+      <div class="title-row">
+        @if (note().icon) {
+          <button
+            class="note-icon"
+            type="button"
+            (click)="toggleIconMenu()"
+            aria-label="Change note icon"
+            [attr.aria-expanded]="iconMenuOpen()"
+            aria-haspopup="dialog"
+            title="Change icon"
+          >
+            @if (isImageIcon(note().icon)) {
+              <img class="note-icon-image" [src]="note().icon" alt="" />
+            } @else {
+              {{ note().icon }}
+            }
+          </button>
+        }
+
+        <input
+          class="title"
+          type="text"
+          placeholder="Untitled note"
+          aria-label="Note title"
+          [value]="note().title"
+          (input)="onTitleInput($event)"
+          [appFocus]="store.pendingTitleFocus() === note().id"
+          (appFocusDone)="store.clearTitleFocus()"
+        />
+
+        @if (iconMenuOpen()) {
+          <div class="icon-backdrop" (click)="closeIconMenu()" aria-hidden="true"></div>
+          <div class="icon-menu" role="dialog" aria-label="Choose note icon">
+            <p class="icon-hint">Choose an icon</p>
+            <div class="icon-grid">
+              @for (choice of iconChoices; track choice) {
+                <button
+                  class="icon-choice"
+                  type="button"
+                  (click)="chooseIcon(choice)"
+                  [attr.aria-label]="'Use icon ' + choice"
+                  [attr.aria-pressed]="note().icon === choice"
+                >
+                  {{ choice }}
+                </button>
+              }
+            </div>
+            <div class="icon-custom">
+              <input
+                #iconInput
+                class="icon-input"
+                type="text"
+                maxlength="16"
+                [value]="isImageIcon(note().icon) ? '' : note().icon"
+                placeholder="Type an emoji or short text"
+                aria-label="Custom note icon"
+                (keydown.enter)="applyCustomIcon()"
+              />
+              <button class="icon-set" type="button" (click)="applyCustomIcon()">Set</button>
+            </div>
+            <div class="icon-image">
+              <p class="icon-hint">Use an image</p>
+              <div class="icon-image-actions">
+                <input
+                  #iconPicker
+                  class="icon-picker"
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  (change)="onIconFile($event)"
+                />
+                <button class="icon-upload" type="button" (click)="browseIconImage()">
+                  <app-icon name="upload" [size]="12" />
+                  Upload file
+                </button>
+                <input
+                  #iconUrlInput
+                  class="icon-input"
+                  type="url"
+                  placeholder="Paste an image link"
+                  aria-label="Image icon link"
+                  (keydown.enter)="applyIconUrl()"
+                />
+                <button class="icon-set" type="button" (click)="applyIconUrl()">Use link</button>
+              </div>
+              @if (iconError()) {
+                <p class="icon-error" role="alert">{{ iconError() }}</p>
+              }
+            </div>
+            @if (note().icon) {
+              <button class="icon-remove" type="button" (click)="removeIcon()">Remove icon</button>
             }
           </div>
-          <div class="icon-custom">
+        }
+      </div>
+
+      <section class="metadata" aria-label="Note metadata">
+        @for (meta of note().metadata; track meta.id; let mi = $index) {
+          <div class="meta-row">
             <input
-              #iconInput
-              class="icon-input"
+              class="meta-key"
               type="text"
-              maxlength="16"
-              [value]="note().icon"
-              placeholder="Type an emoji or short text"
-              aria-label="Custom note icon"
-              (keydown.enter)="applyCustomIcon()"
+              placeholder="label"
+              [attr.aria-label]="'Metadata label ' + (mi + 1)"
+              [value]="meta.key"
+              (input)="updateMetaKey(meta.id, $event)"
+              [appFocus]="focusMetaId() === meta.id"
+              (appFocusDone)="focusMetaId.set(null)"
             />
-            <button class="icon-set" type="button" (click)="applyCustomIcon()">Set</button>
+            <input
+              class="meta-value"
+              type="text"
+              placeholder="value · now()"
+              title="Time helpers: now(), today(), time(), or now(YYYY-MM-DD HH:mm). Press Enter or leave the field to resolve."
+              [attr.aria-label]="'Metadata value ' + (mi + 1)"
+              [value]="meta.value"
+              (input)="updateMetaValue(meta.id, $event)"
+              (keydown.enter)="commitMetaValue(meta.id, $event)"
+              (blur)="commitMetaValue(meta.id, $event)"
+            />
+            <button
+              class="meta-remove"
+              type="button"
+              (click)="removeMeta(meta.id)"
+              [attr.aria-label]="'Remove metadata ' + (mi + 1)"
+              title="Remove"
+            >
+              <app-icon name="x" [size]="12" />
+            </button>
           </div>
-          @if (note().icon) {
-            <button class="icon-remove" type="button" (click)="removeIcon()">Remove icon</button>
+        }
+        <button class="meta-add" type="button" (click)="addMeta()">
+          <app-icon name="plus" [size]="11" />
+          Add metadata
+        </button>
+      </section>
+
+      <div class="rule"></div>
+    </header>
+
+    <div
+      class="blocks"
+      cdkDropList
+      [cdkDropListData]="note().blocks"
+      (cdkDropListDropped)="onDrop($event)"
+    >
+      @for (block of note().blocks; track block.id; let i = $index) {
+        @if (block.type === 'subnote') {
+          <app-subnote-block
+            cdkDragLockAxis="y"
+            [attr.data-block-id]="block.id"
+            [block]="block"
+            [index]="i"
+            [total]="note().blocks.length"
+            [focusOnInit]="focusBlockId() === block.id"
+            (removed)="removeBlock(block.id)"
+            (move)="moveBlock(i, $event)"
+            (focused)="onBlockFocused()"
+          />
+        } @else {
+          <app-note-block
+            cdkDragLockAxis="y"
+            [attr.data-block-id]="block.id"
+            [block]="block"
+            [index]="i"
+            [total]="note().blocks.length"
+            [focusOnInit]="focusBlockId() === block.id"
+            [focusColumn]="focusColumnFor(block.id)"
+            (changed)="onBlockChange(block.id, $event)"
+            (columnChanged)="onColumnChange(block.id, $event)"
+            (columnCountChanged)="onColumnCountChange(block.id, $event)"
+            (imageColumnChanged)="onImageColumnChange(block.id, $event)"
+            (typeChanged)="onBlockTypeChange(block.id, $event)"
+            (split)="onSplitBlock(block.id, $event)"
+            (headingSplit)="onHeadingSplit(block.id, $event)"
+            (fence)="onFence(block.id, $event)"
+            (shortcut)="onMarkdownShortcut(block.id, $event)"
+            (removed)="removeBlock(block.id)"
+            (move)="moveBlock(i, $event)"
+            (focused)="onBlockFocused()"
+          />
+        }
+      }
+    </div>
+
+    @if (note().blocks.length === 0) {
+      <p class="empty-note">This note is empty. Add a block to begin.</p>
+    }
+
+    <div class="block-adder">
+      <button
+        #addButton
+        class="add-block"
+        type="button"
+        (click)="toggleMenu()"
+        [attr.aria-expanded]="menuOpen()"
+        aria-haspopup="menu"
+      >
+        <app-icon name="plus" [size]="14" />
+        Add block
+      </button>
+
+      @if (menuOpen()) {
+        <div class="menu-backdrop" (click)="closeMenu()" aria-hidden="true"></div>
+        <div class="block-menu" role="menu" aria-label="Add block">
+          @for (item of blockMenu; track item.type) {
+            <button
+              type="button"
+              role="menuitem"
+              [appFocus]="menuOpen() && item.type === 'text'"
+              (click)="addBlock(item.type)"
+            >
+              <span class="menu-icon">
+                <app-icon [name]="item.type" [size]="15" />
+              </span>
+              <span class="menu-copy">
+                <span class="menu-label">{{ item.label }}</span>
+                <span class="menu-hint">{{ item.hint }}</span>
+              </span>
+            </button>
           }
         </div>
       }
     </div>
 
-    <section class="metadata" aria-label="Note metadata">
-      @for (meta of note().metadata; track meta.id; let mi = $index) {
-        <div class="meta-row">
-          <input
-            class="meta-key"
-            type="text"
-            placeholder="label"
-            [attr.aria-label]="'Metadata label ' + (mi + 1)"
-            [value]="meta.key"
-            (input)="updateMetaKey(meta.id, $event)"
-            [appFocus]="focusMetaId() === meta.id"
-            (appFocusDone)="focusMetaId.set(null)"
-          />
-          <input
-            class="meta-value"
-            type="text"
-            placeholder="value · now()"
-            title="Time helpers: now(), today(), time(), or now(YYYY-MM-DD HH:mm). Press Enter or leave the field to resolve."
-            [attr.aria-label]="'Metadata value ' + (mi + 1)"
-            [value]="meta.value"
-            (input)="updateMetaValue(meta.id, $event)"
-            (keydown.enter)="commitMetaValue(meta.id, $event)"
-            (blur)="commitMetaValue(meta.id, $event)"
-          />
-          <button
-            class="meta-remove"
-            type="button"
-            (click)="removeMeta(meta.id)"
-            [attr.aria-label]="'Remove metadata ' + (mi + 1)"
-            title="Remove"
-          >
-            <app-icon name="x" [size]="12" />
-          </button>
+    @if (pasteError()) {
+      <p class="paste-error" role="alert">{{ pasteError() }}</p>
+    }
+
+    <section class="subnotes" aria-label="Sub-notes">
+      <div class="subnotes-head">
+        <h2 class="subnotes-title">
+          Sub-notes
+          @if (subNotes().length > 0) {
+            <span class="subnotes-count">{{ subNotes().length }}</span>
+          }
+        </h2>
+        <button class="subnote-add" type="button" (click)="addChildNote()">
+          <app-icon name="plus" [size]="12" />
+          Add sub-note
+        </button>
+      </div>
+
+      @if (subNotes().length > 0) {
+        <div class="subnote-list">
+          @for (child of subNotes(); track child.id) {
+            <button class="subnote-card" type="button" (click)="openNote(child)">
+              <span class="subnote-mark" aria-hidden="true">
+                @if (isImageIcon(child.icon)) {
+                  <img class="subnote-mark-image" [src]="child.icon" alt="" />
+                } @else {
+                  {{ child.icon || '↳' }}
+                }
+              </span>
+              <span class="subnote-copy">
+                <span class="subnote-name">{{ displayTitle(child) }}</span>
+                <span class="subnote-sub">{{ noteSubtitle(child) }}</span>
+              </span>
+              <app-icon name="chevron-right" [size]="13" />
+            </button>
+          }
         </div>
-      }
-      <button class="meta-add" type="button" (click)="addMeta()">
-        <app-icon name="plus" [size]="11" />
-        Add metadata
-      </button>
-    </section>
-
-    <div class="rule"></div>
-  </header>
-
-  <div
-    class="blocks"
-    cdkDropList
-    [cdkDropListData]="note().blocks"
-    (cdkDropListDropped)="onDrop($event)"
-  >
-    @for (block of note().blocks; track block.id; let i = $index) {
-      @if (block.type === 'subnote') {
-        <app-subnote-block
-          cdkDragLockAxis="y"
-          [attr.data-block-id]="block.id"
-          [block]="block"
-          [index]="i"
-          [total]="note().blocks.length"
-          [focusOnInit]="focusBlockId() === block.id"
-          (removed)="removeBlock(block.id)"
-          (move)="moveBlock(i, $event)"
-          (focused)="onBlockFocused()"
-        />
       } @else {
-        <app-note-block
-          cdkDragLockAxis="y"
-          [attr.data-block-id]="block.id"
-          [block]="block"
-          [index]="i"
-          [total]="note().blocks.length"
-          [focusOnInit]="focusBlockId() === block.id"
-          [focusColumn]="focusColumnFor(block.id)"
-          (changed)="onBlockChange(block.id, $event)"
-          (columnChanged)="onColumnChange(block.id, $event)"
-          (columnCountChanged)="onColumnCountChange(block.id, $event)"
-          (imageColumnChanged)="onImageColumnChange(block.id, $event)"
-          (typeChanged)="onBlockTypeChange(block.id, $event)"
-          (split)="onSplitBlock(block.id, $event)"
-          (headingSplit)="onHeadingSplit(block.id, $event)"
-          (fence)="onFence(block.id, $event)"
-          (shortcut)="onMarkdownShortcut(block.id, $event)"
-          (removed)="removeBlock(block.id)"
-          (move)="moveBlock(i, $event)"
-          (focused)="onBlockFocused()"
-        />
+        <p class="subnotes-empty">
+          Notes you create here live inside this note. They also appear nested in the sidebar.
+        </p>
       }
-    }
+    </section>
   </div>
-
-  @if (note().blocks.length === 0) {
-    <p class="empty-note">This note is empty. Add a block to begin.</p>
-  }
-
-  <div class="block-adder">
-    <button
-      #addButton
-      class="add-block"
-      type="button"
-      (click)="toggleMenu()"
-      [attr.aria-expanded]="menuOpen()"
-      aria-haspopup="menu"
-    >
-      <app-icon name="plus" [size]="14" />
-      Add block
-    </button>
-
-    @if (menuOpen()) {
-      <div class="menu-backdrop" (click)="closeMenu()" aria-hidden="true"></div>
-      <div class="block-menu" role="menu" aria-label="Add block">
-        @for (item of blockMenu; track item.type) {
-          <button
-            type="button"
-            role="menuitem"
-            [appFocus]="menuOpen() && item.type === 'text'"
-            (click)="addBlock(item.type)"
-          >
-            <span class="menu-icon">
-              <app-icon [name]="item.type" [size]="15" />
-            </span>
-            <span class="menu-copy">
-              <span class="menu-label">{{ item.label }}</span>
-              <span class="menu-hint">{{ item.hint }}</span>
-            </span>
-          </button>
-        }
-      </div>
-    }
-  </div>
-
-  @if (pasteError()) {
-    <p class="paste-error" role="alert">{{ pasteError() }}</p>
-  }
-
-  <section class="subnotes" aria-label="Sub-notes">
-    <div class="subnotes-head">
-      <h2 class="subnotes-title">
-        Sub-notes
-        @if (subNotes().length > 0) {
-          <span class="subnotes-count">{{ subNotes().length }}</span>
-        }
-      </h2>
-      <button class="subnote-add" type="button" (click)="addChildNote()">
-        <app-icon name="plus" [size]="12" />
-        Add sub-note
-      </button>
-    </div>
-
-    @if (subNotes().length > 0) {
-      <div class="subnote-list">
-        @for (child of subNotes(); track child.id) {
-          <button class="subnote-card" type="button" (click)="openNote(child)">
-            <span class="subnote-mark" aria-hidden="true">{{ child.icon || '↳' }}</span>
-            <span class="subnote-copy">
-              <span class="subnote-name">{{ displayTitle(child) }}</span>
-              <span class="subnote-sub">{{ noteSubtitle(child) }}</span>
-            </span>
-            <app-icon name="chevron-right" [size]="13" />
-          </button>
-        }
-      </div>
-    } @else {
-      <p class="subnotes-empty">
-        Notes you create here live inside this note. They also appear nested in the sidebar.
-      </p>
-    }
-  </section>
 
   <div class="floating-status">
     <span>Edited {{ relative(note().updatedAt) }}</span>

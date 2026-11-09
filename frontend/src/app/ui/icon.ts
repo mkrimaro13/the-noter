@@ -18,6 +18,7 @@ export type IconName =
   | 'menu'
   | 'note'
   | 'upload'
+  | 'move'
   | 'columns'
   | 'smile'
   | 'info'
@@ -131,6 +132,10 @@ export type IconName =
         }
         @case ('upload') {
           <path d="M12 16V4M7 9l5-5 5 5M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+        }
+        @case ('move') {
+          <path d="M12 3v18M3 12h18" />
+          <path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3" />
         }
         @case ('columns') {
           <rect x="3" y="4" width="18" height="16" rx="2" />

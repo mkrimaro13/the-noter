@@ -341,6 +341,14 @@
   line-height: 1;
 }
 
+.note-emoji-image {
+  display: block;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
 .note-title {
   overflow: hidden;
   color: var(--ink);

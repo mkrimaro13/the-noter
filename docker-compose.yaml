@@ -5,6 +5,9 @@ services:
     build:
       context: ./backend
     image: the-noter-backend:local
+    # The image is built here, not published to a registry. This stops Compose
+    # from trying to pull it first and printing a misleading "pull access denied".
+    pull_policy: build
     container_name: the-noter-backend
     restart: unless-stopped
     environment:
@@ -44,6 +47,8 @@ services:
     build:
       context: ./frontend
     image: the-noter-frontend:local
+    # Same as the backend: build locally instead of attempting a registry pull.
+    pull_policy: build
     container_name: the-noter-frontend
     restart: unless-stopped
     environment:

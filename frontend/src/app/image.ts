@@ -54,7 +54,8 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+/** Resolves once the browser can decode the image; used to validate icon sources. */
+export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);

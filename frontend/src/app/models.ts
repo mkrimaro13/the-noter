@@ -1,4 +1,20 @@
+import { resolveTimeFunctions } from './format';
+
 export type BlockType = 'text' | 'heading' | 'list' | 'image' | 'code' | 'function' | 'subnote';
+
+/**
+ * How the cover relates to the note body: inside the reading column (`content`)
+ * or as a full-width banner at the top (`landscape`).
+ */
+export type CoverLayout = 'content' | 'landscape';
+
+/** Focal point of the cover image, as percentages of the image box. */
+export interface CoverPosition {
+  x: number;
+  y: number;
+}
+
+export const DEFAULT_COVER_POSITION: CoverPosition = { x: 50, y: 50 };
 
 export const MAX_TEXT_COLUMNS = 4;
 export const MAX_HEADING_LEVEL = 6;
@@ -61,12 +77,21 @@ export interface Note {
   icon: string;
   /** Cover image data URL (or remote URL), or an empty string. */
   cover: string;
+  /** Whether the cover sits in the reading column or spans the full width. */
+  coverLayout: CoverLayout;
+  /** Which part of the image is visible inside the cover frame. */
+  coverPosition: CoverPosition;
   /** Parent note id for nesting; null for a top-level note. */
   parentId: string | null;
   metadata: NoteMeta[];
   blocks: NoteBlock[];
   createdAt: number;
   updatedAt: number;
+}
+
+/** True when the note icon is an image source instead of an emoji or short text. */
+export function isImageIcon(icon: string): boolean {
+  return /^(data:image\/|https?:\/\/|blob:)/i.test(icon.trim());
 }
 
 /** One note in the nested sidebar tree. */
@@ -297,8 +322,10 @@ export function createNote(parentId: string | null = null): Note {
     title: '',
     icon: '',
     cover: '',
+    coverLayout: 'content',
+    coverPosition: { ...DEFAULT_COVER_POSITION },
     parentId,
-    metadata: [],
+    metadata: [{ id: uid('m'), key: 'creación', value: resolveTimeFunctions('now()') }],
     blocks: [createBlock('text')],
     createdAt: now,
     updatedAt: now,

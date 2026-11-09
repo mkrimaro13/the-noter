@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { stripInlineMarkdown } from '../markdown';
 import { MAX_HEADING_LEVEL, Note } from '../models';
+import { FontSelector } from '../ui/font-selector/font-selector';
 import { Icon } from '../ui/icon';
 
 interface OutlineEntry {
@@ -11,7 +12,7 @@ interface OutlineEntry {
 
 @Component({
   selector: 'app-note-outline',
-  imports: [Icon],
+  imports: [FontSelector, Icon],
   templateUrl: './note-outline.html',
   styleUrl: './note-outline.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

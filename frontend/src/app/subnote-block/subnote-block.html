@@ -21,7 +21,13 @@
   <div class="subnote-content">
     @if (child(); as child) {
       <div class="subnote-head">
-        <span class="subnote-mark" aria-hidden="true">{{ child.icon || '↳' }}</span>
+        <span class="subnote-mark" aria-hidden="true">
+          @if (isImageIcon(child.icon)) {
+            <img class="subnote-mark-image" [src]="child.icon" alt="" />
+          } @else {
+            {{ child.icon || '↳' }}
+          }
+        </span>
         <input
           #titleInput
           class="subnote-title"

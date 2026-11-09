@@ -1,0 +1,82 @@
+:host {
+  display: block;
+}
+
+.font-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-family: var(--font-ui);
+}
+
+.font-label {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.font-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.font-option {
+  padding: 5px 6px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+  transition:
+    color 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.font-option--serif {
+  font-family: var(--font-serif);
+}
+
+.font-option--sans {
+  font-family: var(--font-sans-writing);
+}
+
+.font-option:hover,
+.font-option:focus-visible {
+  color: var(--accent);
+}
+
+.font-option[aria-pressed='true'] {
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(40, 33, 20, 0.08);
+}
+
+:host(.compact) .font-selector {
+  align-items: center;
+  gap: 6px;
+}
+
+:host(.compact) .font-label {
+  display: none;
+}
+
+:host(.compact) .font-options {
+  grid-template-columns: 1fr;
+  width: 100%;
+  gap: 2px;
+  padding: 2px;
+}
+
+:host(.compact) .font-option {
+  padding: 4px 2px;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}

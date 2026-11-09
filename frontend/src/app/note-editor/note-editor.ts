@@ -11,16 +11,19 @@ import {
   viewChild,
 } from '@angular/core';
 import { blockCountLabel, relativeTime, resolveTimeFunctions, wordCount } from '../format';
-import { imageFileToDataUrl } from '../image';
+import { imageFileToDataUrl, loadImage } from '../image';
 import { FenceShortcut, MarkdownBlockShortcut } from '../markdown';
 import {
   BLOCK_MENU,
   BlockPatch,
   BlockType,
+  CoverLayout,
+  CoverPosition,
   ImageColumnPatch,
   Note,
   NoteBlock,
   createBlock,
+  isImageIcon,
   visibleImageColumnText,
   visibleTextColumns,
 } from '../models';
@@ -29,6 +32,10 @@ import { SubnoteBlock } from '../subnote-block/subnote-block';
 import { Focus } from '../ui/focus';
 import { Icon } from '../ui/icon';
 import { NoteBlock as NoteBlockEditor } from '../note-block/note-block';
+
+const ICON_IMAGE_ERROR =
+  "We couldn't load that image. Please check the link or choose another image.";
+const ICON_FILE_ERROR = "We couldn't use that file. Please choose another image.";
 
 const NOTE_ICONS = [
   '📝',
@@ -72,16 +79,34 @@ export class NoteEditor {
   protected readonly focusImageColumn = signal<{ blockId: string; index: number } | null>(null);
   protected readonly pasteError = signal<string | null>(null);
   protected readonly coverError = signal<string | null>(null);
+  protected readonly coverAdjusting = signal(false);
+  protected readonly coverDragPosition = signal<CoverPosition | null>(null);
+  protected readonly iconError = signal<string | null>(null);
   protected readonly iconChoices = NOTE_ICONS;
+  protected readonly isImageIcon = isImageIcon;
 
   protected readonly ancestors = computed(() => this.store.parentChain(this.note()));
   protected readonly subNotes = computed(() => this.store.childNotes(this.note().id));
+  protected readonly coverObjectPosition = computed(() => {
+    const position = this.coverDragPosition() ?? this.note().coverPosition;
+    return `${position.x}% ${position.y}%`;
+  });
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly addButton = viewChild<ElementRef<HTMLButtonElement>>('addButton');
   private readonly coverPicker = viewChild<ElementRef<HTMLInputElement>>('coverPicker');
+  private readonly iconPicker = viewChild<ElementRef<HTMLInputElement>>('iconPicker');
   private readonly iconInput = viewChild<ElementRef<HTMLInputElement>>('iconInput');
+  private readonly iconUrlInput = viewChild<ElementRef<HTMLInputElement>>('iconUrlInput');
   private pasteErrorTimer: ReturnType<typeof setTimeout> | undefined;
+  private coverDrag: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startPosition: CoverPosition;
+    overflowX: number;
+    overflowY: number;
+  } | null = null;
 
   protected readonly words = computed(() => {
     const text = this.note()
@@ -109,6 +134,10 @@ export class NoteEditor {
       this.focusBlockId.set(null);
       this.focusImageColumn.set(null);
       this.coverError.set(null);
+      this.coverAdjusting.set(false);
+      this.coverDrag = null;
+      this.coverDragPosition.set(null);
+      this.iconError.set(null);
     });
   }
 
@@ -158,9 +187,88 @@ export class NoteEditor {
     this.store.setCover(this.note().id, '');
   }
 
+  protected chooseCoverLayout(layout: CoverLayout): void {
+    this.store.setCoverLayout(this.note().id, layout);
+  }
+
+  protected toggleCoverAdjust(): void {
+    const adjusting = !this.coverAdjusting();
+    this.coverAdjusting.set(adjusting);
+    if (!adjusting) {
+      this.coverDrag = null;
+      this.coverDragPosition.set(null);
+    }
+  }
+
+  /** Starts panning the cover; the image follows the pointer while adjusting. */
+  protected startCoverDrag(event: PointerEvent): void {
+    if (!this.coverAdjusting() || event.button !== 0) return;
+    if (!(event.currentTarget instanceof HTMLImageElement)) return;
+
+    const image = event.currentTarget;
+    const rect = image.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    const naturalWidth = image.naturalWidth || rect.width;
+    const naturalHeight = image.naturalHeight || rect.height;
+    const scale = Math.max(rect.width / naturalWidth, rect.height / naturalHeight);
+
+    this.coverDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startPosition: { ...this.note().coverPosition },
+      overflowX: Math.max(0, naturalWidth * scale - rect.width),
+      overflowY: Math.max(0, naturalHeight * scale - rect.height),
+    };
+    this.coverDragPosition.set({ ...this.note().coverPosition });
+    image.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  }
+
+  protected moveCover(event: PointerEvent): void {
+    const drag = this.coverDrag;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    this.coverDragPosition.set({
+      x:
+        drag.overflowX > 0.5
+          ? clampPercent(drag.startPosition.x - (dx / drag.overflowX) * 100)
+          : drag.startPosition.x,
+      y:
+        drag.overflowY > 0.5
+          ? clampPercent(drag.startPosition.y - (dy / drag.overflowY) * 100)
+          : drag.startPosition.y,
+    });
+    event.preventDefault();
+  }
+
+  protected endCoverDrag(event: PointerEvent): void {
+    const drag = this.coverDrag;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const position = this.coverDragPosition();
+    this.coverDrag = null;
+    this.coverDragPosition.set(null);
+
+    const current = this.note().coverPosition;
+    if (position && (position.x !== current.x || position.y !== current.y)) {
+      this.store.setCoverPosition(this.note().id, position.x, position.y);
+    }
+  }
+
+  protected cancelCoverDrag(event: PointerEvent): void {
+    if (this.coverDrag?.pointerId !== event.pointerId) return;
+    this.coverDrag = null;
+    this.coverDragPosition.set(null);
+  }
+
   protected toggleIconMenu(): void {
     const open = !this.iconMenuOpen();
     this.iconMenuOpen.set(open);
+    this.iconError.set(null);
     if (open) {
       setTimeout(() => this.iconInput()?.nativeElement.focus());
     }
@@ -172,6 +280,7 @@ export class NoteEditor {
 
   protected chooseIcon(icon: string): void {
     this.store.setIcon(this.note().id, icon);
+    this.iconError.set(null);
     this.iconMenuOpen.set(false);
   }
 
@@ -181,9 +290,67 @@ export class NoteEditor {
     this.chooseIcon(value);
   }
 
+  protected browseIconImage(): void {
+    this.iconError.set(null);
+    this.iconPicker()?.nativeElement.click();
+  }
+
+  protected onIconFile(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    void this.importIconFile(file);
+  }
+
+  protected applyIconUrl(): void {
+    const input = this.iconUrlInput()?.nativeElement;
+    const value = input?.value.trim() ?? '';
+    if (!value) {
+      this.iconError.set(ICON_IMAGE_ERROR);
+      input?.focus();
+      return;
+    }
+    void this.importIconUrl(value);
+  }
+
   protected removeIcon(): void {
     this.store.setIcon(this.note().id, '');
+    this.iconError.set(null);
     this.iconMenuOpen.set(false);
+  }
+
+  private async importIconFile(file: File | null): Promise<void> {
+    if (!file) return;
+
+    this.iconError.set(null);
+    if (!file.type.startsWith('image/')) {
+      this.iconError.set(ICON_FILE_ERROR);
+      return;
+    }
+
+    try {
+      const icon = await imageFileToDataUrl(file, 256);
+      await loadImage(icon);
+      this.chooseIcon(icon);
+    } catch {
+      this.iconError.set(ICON_FILE_ERROR);
+    }
+  }
+
+  private async importIconUrl(value: string): Promise<void> {
+    this.iconError.set(null);
+    const source = iconSourceFrom(value);
+    if (!source) {
+      this.iconError.set(ICON_IMAGE_ERROR);
+      return;
+    }
+
+    try {
+      await loadImage(source);
+      this.chooseIcon(source);
+    } catch {
+      this.iconError.set(ICON_IMAGE_ERROR);
+    }
   }
 
   private async importCover(file: File | null): Promise<void> {
@@ -461,6 +628,26 @@ export class NoteEditor {
   protected closePopovers(): void {
     this.iconMenuOpen.set(false);
     this.closeMenu();
+  }
+}
+
+/**
+ * Accepts `data:image/…` sources and normal http(s) links (including
+ * protocol-relative links) while rejecting anything the browser cannot render.
+ */
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, value));
+}
+
+function iconSourceFrom(value: string): string | null {
+  if (/^data:image\//i.test(value)) return value;
+
+  const withProtocol = value.startsWith('//') ? `https:${value}` : value;
+  try {
+    const url = new URL(withProtocol);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
   }
 }
 

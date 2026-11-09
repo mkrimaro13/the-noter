@@ -69,6 +69,12 @@ describe('NoteOutline', () => {
     expect(collapse).toHaveBeenCalled();
   });
 
+  it('keeps the typeface selector in the pinned footer', () => {
+    const fixture = setup();
+
+    expect(fixture.nativeElement.querySelector('.outline-footer app-font-selector')).not.toBeNull();
+  });
+
   it('shows an empty message without headings', () => {
     const fixture = setup({ ...createNote(), blocks: [] });
 

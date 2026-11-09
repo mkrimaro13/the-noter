@@ -28,14 +28,22 @@ This folder is the Angular app of the monorepo. The repository root holds the Co
   opened in the full editor when needed. Deleting a note promotes its direct children to the
   deleted note's parent instead of removing them, removes any inline sub-note blocks pointing
   at it, and search flattens the tree so matches are never hidden.
-- **Icons and covers** — give a note an emoji or short text icon (presets or your own) and an
-  optional cover image. Drop a new image onto an existing cover to replace it, or use the
-  header controls to add, replace, and remove covers. The icon appears beside the title and in
-  the sidebar.
+- **Icons and covers** — give a note an emoji or short text icon (presets or your own), upload
+  an image file, or paste an image link. Bad links and unreadable files are rejected with a
+  friendly prompt to try another image. Drop a new image onto an existing cover to replace it,
+  or use the header controls to add, replace, and remove covers. Each cover can use two layouts:
+  `Contenido` keeps it inside the reading column, while `Apaisado` spans the full width of the
+  main pane as a top banner and lets the note body overlap its lower edge. Use `Reajustar` to
+  drag the picture inside its frame and choose which part stays visible; the framing is saved
+  with the note. The icon appears beside the title and in the sidebar.
+- **Writing typeface** — the selector at the bottom of the right-hand outline (and of its
+  collapsed rail) switches between the editorial Serif and a rounded, friendly Sans (Nunito).
+  The choice applies to note writing, sub-notes, and image-column text, and persists locally.
 - **Visible metadata** — add any number of `label → value` pairs to a note. Values accept
   inline time helpers resolved on `Enter` or blur: `now()` inserts the current date and time,
   `today()` the date, and `time()` the time. Use `now(iso)`, `now(unix)`, or a pattern such as
-  `now(YYYY-MM-DD HH:mm)` for other formats.
+  `now(YYYY-MM-DD HH:mm)` for other formats. New notes start with a `creación` entry whose
+  value is resolved from `now()` when the note is created; existing notes are left unchanged.
 - **Composable blocks** — text, headings, bulleted/numbered lists, images, code, function, and
   sub-note blocks. Use the block-type button beside a block to switch between them at any time;
   writing carries over as a heading, list items, or text columns, and switching to a sub-note
@@ -182,7 +190,7 @@ for now. Remote access will need a better credential story than a static passwor
 - Angular CDK drag & drop
 - KaTeX for math rendering and highlight.js for code syntax highlighting
 - SCSS with CSS custom properties for theming
-- Self-hosted Newsreader (writing) and Inter (interface) variable fonts
+- Self-hosted Newsreader (serif writing), Nunito (sans writing), and Inter (interface) variable fonts
 
 ## Running it
 
@@ -238,13 +246,14 @@ src/app/
   note-block/               text, heading, list, image, code, and function editors
   note-block/image-column/  one image-block column (writing or picture)
   subnote-block/            an inline child note embedded in the parent's block flow
-  note-outline/             right-hand heading hierarchy
-  ui/                       icon set, inline Markdown preview, code highlight, LaTeX, autosize, focus helper
+  note-outline/             right-hand heading hierarchy and typeface selector
+  ui/                       icon set, font selector, inline Markdown preview, code highlight, LaTeX, autosize, focus helper
 ```
 
-Notes are stored under `the-noter.notes.v1` in `localStorage`; selected-note and sidebar
-visibility preferences use `the-noter.selection.v1`, `the-noter.ui.notes-visible`, and
-`the-noter.ui.outline-visible`. Sync bookkeeping lives in `the-noter.sync.v1` (cursor, known
+Notes are stored under `the-noter.notes.v1` in `localStorage`; selected-note, sidebar
+visibility, and writing-typeface preferences use `the-noter.selection.v1`,
+`the-noter.ui.notes-visible`, `the-noter.ui.outline-visible`, and
+`the-noter.ui.writing-font`. Sync bookkeeping lives in `the-noter.sync.v1` (cursor, known
 revisions, and the dirty/deleted queues); `the-noter.sync.disabled` turns sync off.
 
 Clearing site data resets the app, but it also removes the sync cursor. On the next start the app

@@ -4,6 +4,9 @@ import { SyncService, type RemoteApply } from './sync';
 import {
   BlockPatch,
   BlockType,
+  CoverLayout,
+  CoverPosition,
+  DEFAULT_COVER_POSITION,
   ImageColumn,
   ImageColumnPatch,
   MAX_HEADING_LEVEL,
@@ -17,6 +20,7 @@ import {
   createImageColumn,
   createNote,
   convertBlock,
+  isImageIcon,
   uid,
   visibleImageColumnText,
   visibleTextColumns,
@@ -147,11 +151,30 @@ export class NoteStore {
   }
 
   setIcon(noteId: string, icon: string): void {
-    this.mutate(noteId, (note) => ({ ...note, icon: icon.slice(0, 16) }));
+    this.mutate(noteId, (note) => ({
+      ...note,
+      // Image icons are data URLs or links and must keep their full source.
+      icon: isImageIcon(icon) ? icon : icon.slice(0, 16),
+    }));
   }
 
   setCover(noteId: string, cover: string): void {
-    this.mutate(noteId, (note) => ({ ...note, cover }));
+    // A new picture starts centred so it never inherits an old framing.
+    this.mutate(noteId, (note) => ({
+      ...note,
+      cover,
+      coverPosition: { ...DEFAULT_COVER_POSITION },
+    }));
+  }
+
+  setCoverLayout(noteId: string, coverLayout: CoverLayout): void {
+    this.mutate(noteId, (note) => ({ ...note, coverLayout }));
+  }
+
+  /** Moves the visible part of the cover image; values are clamped to 0–100%. */
+  setCoverPosition(noteId: string, x: number, y: number): void {
+    const coverPosition = { x: clampPercent(x), y: clampPercent(y) };
+    this.mutate(noteId, (note) => ({ ...note, coverPosition }));
   }
 
   select(id: string | null): void {
@@ -761,6 +784,8 @@ function normalizeNote(value: unknown): Note | null {
     title: stringOr(value['title'], ''),
     icon: stringOr(value['icon'], ''),
     cover: stringOr(value['cover'], ''),
+    coverLayout: value['coverLayout'] === 'landscape' ? 'landscape' : 'content',
+    coverPosition: normalizeCoverPosition(value['coverPosition']),
     parentId: stringOr(value['parentId'], '') || null,
     metadata: metadataRaw.map(normalizeMeta).filter((meta): meta is NoteMeta => meta !== null),
     blocks: blocksRaw.map(normalizeBlock).filter((block): block is NoteBlock => block !== null),
@@ -907,4 +932,17 @@ function stringOr(value: unknown, fallback: string): string {
 
 function numberOr(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeCoverPosition(value: unknown): CoverPosition {
+  if (!isRecord(value)) return { ...DEFAULT_COVER_POSITION };
+  return {
+    x: clampPercent(numberOr(value['x'], DEFAULT_COVER_POSITION.x)),
+    y: clampPercent(numberOr(value['y'], DEFAULT_COVER_POSITION.y)),
+  };
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 50;
+  return Math.min(100, Math.max(0, value));
 }

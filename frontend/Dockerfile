@@ -2,13 +2,19 @@
 FROM node:26-bookworm-slim AS build
 
 WORKDIR /app
-ENV NG_CLI_ANALYTICS=false
+ENV NG_CLI_ANALYTICS=false \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --no-audit --no-fund --loglevel=error
 
 COPY . .
-RUN npm run build
+# --ignore-scripts skips the `prebuild` hook that reads the repository-root
+# .env. There is no .env in the image build context (credentials must not be
+# baked in), and /sync-config.json is written at container start by
+# docker-entrypoint.d/40-sync-config.sh instead. Skipping the hook avoids the
+# misleading "Sync config: disabled" build warning.
+RUN npm run build --ignore-scripts
 
 
 FROM nginx:stable-alpine AS runtime
