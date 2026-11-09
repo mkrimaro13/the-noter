@@ -43,4 +43,22 @@ describe('MarkdownInline', () => {
     expect(element.querySelector('a')).toBeNull();
     expect(element.textContent).toContain('[x](javascript:alert(1))');
   });
+
+  it('renders bold, italic, and strikethrough marks', () => {
+    const bold = render('**bold**');
+    const italic = render('*italic*');
+    const strike = render('~~gone~~');
+
+    expect(bold.querySelector('.md-bold')?.textContent).toBe('bold');
+    expect(italic.querySelector('.md-italic')?.textContent).toBe('italic');
+    expect(strike.querySelector('.md-strike')?.textContent).toBe('gone');
+  });
+
+  it('renders nested marks on inline code and links', () => {
+    const code = render('**use `npm test`**');
+    const link = render('*[docs](https://example.com)*');
+
+    expect(code.querySelector('.md-bold .md-code')?.textContent).toBe('npm test');
+    expect(link.querySelector('.md-italic a')?.textContent).toBe('docs');
+  });
 });

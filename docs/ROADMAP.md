@@ -101,8 +101,8 @@ endurecimiento para producción.
 
 #### P0.3 — Completar Markdown y LaTeX inline
 
-- [ ] Markdown inline: negrita, cursiva, tachado y escapes.
-- [ ] Markdown inline en previews de texto, headings, listas y columnas.
+- [x] Markdown inline: negrita, cursiva, tachado y escapes.
+- [x] Markdown inline en previews de texto, headings, listas y columnas.
 - [ ] LaTeX inline en texto/headings/listas: `$...$`, `\(...\)`, `$$...$$`.
 - [ ] Blockquote, regla horizontal, task lists, tablas simples y footnotes.
 - [ ] Imágenes Markdown y sanitización de HTML.
@@ -279,7 +279,7 @@ endurecimiento para producción.
 | Etapa | Alcance | Estado | Commit |
 |-------|---------|--------|--------|
 | 0 | Roadmap y checkpoint del trabajo previo | ✅ Completada | `chore: checkpoint current work before roadmap implementation` / `docs: add staged implementation roadmap` |
-| 1 | Markdown inline completo (negrita, cursiva, tachado, escapes) | ⏳ Pendiente | — |
+| 1 | Markdown inline completo (negrita, cursiva, tachado, escapes) | ✅ Completada | `feat(markdown): etapa 1 - formato inline completo` |
 | 2 | LaTeX inline en texto, headings, listas y columnas | ⏳ Pendiente | — |
 | 3 | Export/import JSON de backup | ⏳ Pendiente | — |
 | 4 | Command palette (`Ctrl/Cmd + K`) | ⏳ Pendiente | — |
@@ -295,5 +295,6 @@ endurecimiento para producción.
 
 ### Próxima etapa
 
-**Etapa 1 — Markdown inline completo.** Añadir negrita, cursiva, tachado y escapes al parser inline
-y a sus previews, con pruebas unitarias y sin tocar el modelo de bloques.
+**Etapa 2 — LaTeX inline en texto, headings, listas y columnas.** Detectar `$...$`, `\(...\)` y
+`$$...$$` dentro del contenido inline, renderizar con KaTeX sin romper el Markdown existente y
+cubrirlo con pruebas unitarias.

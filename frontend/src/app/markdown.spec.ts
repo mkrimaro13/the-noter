@@ -47,6 +47,57 @@ describe('parseInline', () => {
       { kind: 'link', text: 'h', href: '#top' },
     ]);
   });
+
+  it('parses bold, italic, and strikethrough marks', () => {
+    expect(parseInline('**bold**')).toEqual([
+      { kind: 'text', text: 'bold', marks: ['bold'] },
+    ]);
+    expect(parseInline('_italic_')).toEqual([
+      { kind: 'text', text: 'italic', marks: ['italic'] },
+    ]);
+    expect(parseInline('~~gone~~')).toEqual([
+      { kind: 'text', text: 'gone', marks: ['strike'] },
+    ]);
+  });
+
+  it('supports both marker styles and combined marks', () => {
+    expect(parseInline('__bold__ *italic* ***both***')).toEqual([
+      { kind: 'text', text: 'bold', marks: ['bold'] },
+      { kind: 'text', text: ' ' },
+      { kind: 'text', text: 'italic', marks: ['italic'] },
+      { kind: 'text', text: ' ' },
+      { kind: 'text', text: 'both', marks: ['bold', 'italic'] },
+    ]);
+  });
+
+  it('nests marks and keeps code/link tokens marked', () => {
+    expect(parseInline('**bold and *italic* text**')).toEqual([
+      { kind: 'text', text: 'bold and ', marks: ['bold'] },
+      { kind: 'text', text: 'italic', marks: ['bold', 'italic'] },
+      { kind: 'text', text: ' text', marks: ['bold'] },
+    ]);
+    expect(parseInline('**use `x`**')).toEqual([
+      { kind: 'text', text: 'use ', marks: ['bold'] },
+      { kind: 'code', text: 'x', marks: ['bold'] },
+    ]);
+  });
+
+  it('keeps unmatched delimiters literal', () => {
+    expect(parseInline('**open')).toEqual([{ kind: 'text', text: '**open' }]);
+    expect(parseInline('a * b')).toEqual([{ kind: 'text', text: 'a * b' }]);
+    expect(parseInline('snake_case_name')).toEqual([
+      { kind: 'text', text: 'snake_case_name' },
+    ]);
+  });
+
+  it('honors backslash escapes', () => {
+    expect(parseInline('\\*not italic\\*')).toEqual([
+      { kind: 'text', text: '*not italic*' },
+    ]);
+    expect(parseInline('\\*\\*bold?\\*\\*')).toEqual([
+      { kind: 'text', text: '**bold?**' },
+    ]);
+  });
 });
 
 describe('inline helpers', () => {
@@ -54,10 +105,13 @@ describe('inline helpers', () => {
     expect(hasInlineMarkup('plain')).toBe(false);
     expect(hasInlineMarkup('`code`')).toBe(true);
     expect(hasInlineMarkup('[link](https://example.com)')).toBe(true);
+    expect(hasInlineMarkup('**bold**')).toBe(true);
+    expect(hasInlineMarkup('~~gone~~')).toBe(true);
+    expect(hasInlineMarkup('\\*literal\\*')).toBe(false);
   });
 
   it('strips markup for compact labels', () => {
-    expect(stripInlineMarkdown('**a** `b` [c](https://example.com)')).toBe('**a** b c');
+    expect(stripInlineMarkdown('**a** `b` [c](https://example.com)')).toBe('a b c');
   });
 });
 

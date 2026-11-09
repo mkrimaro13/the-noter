@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { parseInline } from '../markdown';
+import { InlineToken, parseInline } from '../markdown';
 
 /**
  * Renders the small inline Markdown subset next to an editor field. The raw
@@ -10,24 +10,26 @@ import { parseInline } from '../markdown';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (token of tokens(); track $index) {
-      @switch (token.kind) {
-        @case ('code') {
-          <code class="md-code">{{ token.text }}</code>
+      <span [class]="markClasses(token)">
+        @switch (token.kind) {
+          @case ('code') {
+            <code class="md-code">{{ token.text }}</code>
+          }
+          @case ('link') {
+            <a
+              class="md-link"
+              [href]="token.href"
+              target="_blank"
+              rel="noreferrer noopener"
+              tabindex="-1"
+              >{{ token.text }}</a
+            >
+          }
+          @default {
+            <span>{{ token.text }}</span>
+          }
         }
-        @case ('link') {
-          <a
-            class="md-link"
-            [href]="token.href"
-            target="_blank"
-            rel="noreferrer noopener"
-            tabindex="-1"
-            >{{ token.text }}</a
-          >
-        }
-        @default {
-          <span>{{ token.text }}</span>
-        }
-      }
+      </span>
     }
   `,
   styles: `
@@ -59,9 +61,26 @@ import { parseInline } from '../markdown';
     .md-link:hover {
       color: var(--ink);
     }
+
+    .md-bold {
+      font-weight: 700;
+    }
+
+    .md-italic {
+      font-style: italic;
+    }
+
+    .md-strike {
+      text-decoration: line-through;
+      text-decoration-thickness: 1px;
+    }
   `,
 })
 export class MarkdownInline {
   readonly text = input.required<string>();
   protected readonly tokens = computed(() => parseInline(this.text()));
+
+  protected markClasses(token: InlineToken): string {
+    return (token.marks ?? []).map((mark) => `md-${mark}`).join(' ');
+  }
 }
