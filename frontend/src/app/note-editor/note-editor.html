@@ -101,6 +101,16 @@
             <app-icon name="image" [size]="11" />
             {{ note().cover ? 'Change cover' : 'Add cover' }}
           </button>
+          <button
+            class="cover-url-toggle"
+            type="button"
+            (click)="toggleCoverUrl()"
+            [attr.aria-expanded]="coverUrlOpen()"
+            title="Use an image from a URL"
+          >
+            <app-icon name="link" [size]="11" />
+            From URL
+          </button>
           @if (note().cover) {
             <span class="cover-layout" role="group" aria-label="Cover layout">
               <button
@@ -139,6 +149,21 @@
         </span>
       </div>
 
+      @if (coverUrlOpen()) {
+        <div class="cover-url">
+          <input
+            #coverUrlInput
+            class="cover-url-input"
+            type="url"
+            placeholder="https://example.com/cover.jpg"
+            aria-label="Cover image URL"
+            (keydown.enter)="applyCoverUrl()"
+          />
+          <button class="cover-url-set" type="button" (click)="applyCoverUrl()">Set cover</button>
+          <button class="cover-url-cancel" type="button" (click)="toggleCoverUrl()">Cancel</button>
+        </div>
+      }
+
       @if (coverError()) {
         <p class="cover-error" role="alert">{{ coverError() }}</p>
       }
@@ -176,18 +201,73 @@
         @if (iconMenuOpen()) {
           <div class="icon-backdrop" (click)="closeIconMenu()" aria-hidden="true"></div>
           <div class="icon-menu" role="dialog" aria-label="Choose note icon">
-            <p class="icon-hint">Choose an icon</p>
+            <div class="icon-search-row">
+              <app-icon name="search" [size]="12" />
+              <input
+                class="icon-search"
+                type="search"
+                placeholder="Search icons"
+                aria-label="Search icons"
+                [value]="iconQuery()"
+                (input)="onIconQuery($event)"
+              />
+            </div>
+
+            <div class="icon-categories" role="group" aria-label="Icon categories">
+              @for (category of iconCategories(); track category) {
+                <button
+                  class="icon-category"
+                  type="button"
+                  (click)="setIconCategory(category)"
+                  [class.active]="iconCategory() === category"
+                  [attr.aria-pressed]="iconCategory() === category"
+                >
+                  {{ category }}
+                </button>
+              }
+            </div>
+
+            @if (recentChoices().length > 0) {
+              <div class="icon-recent">
+                <p class="icon-hint">Recent</p>
+                <div class="icon-grid">
+                  @for (choice of recentChoices(); track choice.icon) {
+                    <button
+                      class="icon-choice"
+                      type="button"
+                      (click)="chooseIcon(choice.icon)"
+                      [attr.aria-label]="'Use icon ' + choice.name"
+                      [attr.aria-pressed]="note().icon === choice.icon"
+                      [title]="choice.name"
+                    >
+                      {{ choice.icon }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+
+            <p class="icon-hint">
+              @if (iconCategory() === 'All') {
+                All icons
+              } @else {
+                {{ iconCategory() }}
+              }
+            </p>
             <div class="icon-grid">
-              @for (choice of iconChoices; track choice) {
+              @for (choice of filteredIcons(); track choice.icon) {
                 <button
                   class="icon-choice"
                   type="button"
-                  (click)="chooseIcon(choice)"
-                  [attr.aria-label]="'Use icon ' + choice"
-                  [attr.aria-pressed]="note().icon === choice"
+                  (click)="chooseIcon(choice.icon)"
+                  [attr.aria-label]="'Use icon ' + choice.name"
+                  [attr.aria-pressed]="note().icon === choice.icon"
+                  [title]="choice.name"
                 >
-                  {{ choice }}
+                  {{ choice.icon }}
                 </button>
+              } @empty {
+                <p class="icon-empty">No icons match “{{ iconQuery() }}”.</p>
               }
             </div>
             <div class="icon-custom">

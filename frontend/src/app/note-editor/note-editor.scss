@@ -268,6 +268,7 @@
 }
 
 .cover-add,
+.cover-url-toggle,
 .icon-add {
   display: inline-flex;
   align-items: center;
@@ -288,9 +289,47 @@
 }
 
 .cover-add:hover,
+.cover-url-toggle:hover,
 .icon-add:hover,
 .cover-add:focus-visible,
+.cover-url-toggle:focus-visible,
 .icon-add:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.cover-url {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -14px 0 14px;
+}
+
+.cover-url-input {
+  flex: 1;
+  min-width: 170px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 11px;
+}
+
+.cover-url-set,
+.cover-url-cancel {
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+}
+
+.cover-url-set:hover,
+.cover-url-set:focus-visible {
   color: var(--accent);
   border-color: var(--accent-line);
   background: var(--accent-soft);
@@ -374,10 +413,74 @@
   text-transform: uppercase;
 }
 
+.icon-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.icon-search {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 11px;
+}
+
+.icon-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.icon-category {
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.icon-category:hover,
+.icon-category:focus-visible {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+
+.icon-category.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.icon-recent {
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
 .icon-grid {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 2px;
+}
+
+.icon-empty {
+  grid-column: 1 / -1;
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 10.5px;
 }
 
 .icon-choice {
@@ -1063,6 +1166,7 @@
   }
 
   .cover-add,
+  .cover-url-toggle,
   .icon-add {
     padding: 2px 3px;
     font-size: 8.5px;

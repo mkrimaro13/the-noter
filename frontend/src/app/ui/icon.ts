@@ -30,7 +30,8 @@ export type IconName =
   | 'panel-left-close'
   | 'panel-left-open'
   | 'panel-right-close'
-  | 'panel-right-open';
+  | 'panel-right-open'
+  | 'link';
 
 @Component({
   selector: 'app-icon',
@@ -164,6 +165,10 @@ export type IconName =
         @case ('panel-right-open') {
           <rect x="3" y="4" width="18" height="16" rx="2" />
           <path d="M15 4v16M11 9l-3 3 3 3" />
+        }
+        @case ('link') {
+          <path d="M10 13a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2" />
+          <path d="M14 11a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2" />
         }
       }
     </svg>

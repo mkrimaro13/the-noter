@@ -53,12 +53,12 @@ worker.
 | 1 | Compatibilidad TeX/LaTeX | ✅ Implementada, alcance acotado | `latex.ts`, `ui/latex.ts`, bloque `function`, toggle `TeX`, KaTeX lazy, normalización de documentos/tablas, enlaces seguros | ⏳ Pendiente | — 
 | 2 | Edición Markdown | 🟡 Parcial | `markdown.ts`, `ui/markdown-inline.ts`, headings, listas, fences, código inline, enlaces y shortcuts | ⏳ Pendiente | — 
 | 3 | Anidación de notas | ✅ Implementada | `parentId`, `noteTree`, breadcrumbs, sub-nota inline, indentación en sidebar, borrado que reasigna hijos | ⏳ Pendiente | — 
-| 4 | Iconos en notas | ✅ Implementada | Presets emoji, texto corto, imagen por archivo o URL; icono en título y sidebar | ⏳ Pendiente | — 
-| 5 | Imagen de cover | ✅ Implementada | Archivo/arrastre, layouts `content`/`landscape`, reencuadre por arrastre, reemplazo y eliminación | ⏳ Pendiente | — 
+| 4 | Iconos en notas | ✅ Implementada | Presets emoji con búsqueda, categorías y recientes, texto corto, imagen por archivo o URL; icono en título y sidebar | ⏳ Pendiente | — 
+| 5 | Imagen de cover | ✅ Implementada | Archivo/arrastre/URL, layouts `content`/`landscape`, reencuadre por arrastre, reemplazo y eliminación | ⏳ Pendiente | — 
 | 6 | Índice en panel derecho desde headings | ✅ Implementada | `note-outline`: headings 1–6, indentación, clic para hacer scroll y enfocar, ocultar/rail/overlay móvil | ⏳ Pendiente | — 
 | 7 | Imágenes dentro de notas | ✅ Implementada | Bloques de imagen, columnas de imagen, archivo/arrastre/URL/pegado, compresión, caption, reemplazo y borrado | ⏳ Pendiente | — 
 | 8 | Bloques con columnas | ✅ Implementada | Columnas de texto e imagen hasta 4, menú de columnas, apilado responsive, columnas ocultas preservadas | ⏳ Pendiente | — 
-| 9 | Metadatos en notas | ✅ Implementada | `NoteMeta[]`, añadir/editar/eliminar, helpers de fecha/hora, entrada `creación` por defecto | Son solo pares texto→texto. No hay tipos (fecha, número, select, checkbox), filtros, ordenación ni plantillas. |
+| 9 | Metadatos en notas | ✅ Implementada | `NoteMeta[]` tipados (texto, número, fecha, URL, select, checkbox), añadir/editar/eliminar, helpers de fecha/hora, entrada `creación` por defecto | Faltan campos automáticos, filtros, ordenación y plantillas. |
 
 **Conclusión:** las nueve funciones están presentes. Markdown y LaTeX deben considerarse
 **parciales en alcance**; el resto está implementado de forma funcional, con margen de pulido y
@@ -139,9 +139,9 @@ endurecimiento para producción.
 
 #### P1.2 — Iconos y covers
 
-- [ ] Picker de iconos con búsqueda.
-- [ ] Categorías y recientes.
-- [ ] Cover desde URL.
+- [x] Picker de iconos con búsqueda.
+- [x] Categorías y recientes.
+- [x] Cover desde URL.
 - [ ] Galería de portadas y presets de color/degradado.
 - [ ] Texto alternativo y mejor control de encuadre en móvil.
 - [ ] **Done when:** elegir icono/cover es rápido y no requiere conocer una URL de memoria.
@@ -286,7 +286,7 @@ endurecimiento para producción.
 | 5 | Scrollspy del outline | ✅ Completada | `feat(outline): etapa 5 - resaltado de seccion activa` |
 | 6 | Mover/reparentar notas y persistir árbol | ✅ Completada | `feat(notes): etapa 6 - mover notas y persistir arbol` |
 | 7 | Metadatos tipados | ✅ Completada | `feat(metadata): etapa 7 - metadatos tipados` |
-| 8 | Búsqueda de iconos y cover por URL | ⏳ Pendiente | — |
+| 8 | Búsqueda de iconos y cover por URL | ✅ Completada | `feat(icons): etapa 8 - busqueda de iconos y cover por URL` |
 | 9 | Almacenamiento de imágenes como attachments + IndexedDB | ⏳ Pendiente | — |
 | 10 | Papelera, undo/redo y export Markdown/PDF | ⏳ Pendiente | — |
 | 11 | Endurecimiento de sync (compactación, migraciones, conflictos) | ⏳ Pendiente | — |
@@ -295,6 +295,6 @@ endurecimiento para producción.
 
 ### Próxima etapa
 
-**Etapa 8 — Búsqueda de iconos y cover por URL.** Añadir un selector de iconos con búsqueda,
-categorías y recientes, y permitir establecer la portada desde una URL con validación y manejo de
-errores.
+**Etapa 9 — Imágenes como attachments + IndexedDB.** Sacar las imágenes del JSON y de
+`localStorage`, subirlas como attachments content-addressed (`asset:<hash>`) y cachear los blobs en
+IndexedDB para que sigan visibles offline.

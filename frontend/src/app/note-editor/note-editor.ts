@@ -39,24 +39,66 @@ import { NoteBlock as NoteBlockEditor } from '../note-block/note-block';
 const ICON_IMAGE_ERROR =
   "We couldn't load that image. Please check the link or choose another image.";
 const ICON_FILE_ERROR = "We couldn't use that file. Please choose another image.";
+const COVER_IMAGE_ERROR =
+  "We couldn't load that cover. Please check the link or choose another image.";
+const RECENT_ICONS_KEY = 'the-noter.ui.recent-icons.v1';
 
-const NOTE_ICONS = [
-  '📝',
-  '📚',
-  '💡',
-  '🎯',
-  '🌱',
-  '☕',
-  '🧭',
-  '✨',
-  '🧪',
-  '🗂️',
-  '🔖',
-  '❤️',
-  '🌙',
-  '🎨',
-  '🧠',
-  '🏷️',
+type IconCategory = 'Work' | 'Life' | 'Ideas' | 'Media';
+
+interface NoteIconChoice {
+  icon: string;
+  name: string;
+  keywords: string;
+  category: IconCategory;
+}
+
+const NOTE_ICONS: readonly NoteIconChoice[] = [
+  { icon: '📝', name: 'note', keywords: 'write memo draft', category: 'Work' },
+  { icon: '📚', name: 'books', keywords: 'read library study', category: 'Work' },
+  { icon: '🗂️', name: 'files', keywords: 'folder archive organize', category: 'Work' },
+  { icon: '📁', name: 'folder', keywords: 'directory project', category: 'Work' },
+  { icon: '📌', name: 'pin', keywords: 'important keep', category: 'Work' },
+  { icon: '📎', name: 'clip', keywords: 'attach paper', category: 'Work' },
+  { icon: '✅', name: 'check', keywords: 'done task complete', category: 'Work' },
+  { icon: '📊', name: 'chart', keywords: 'data analytics report', category: 'Work' },
+  { icon: '💼', name: 'briefcase', keywords: 'job business office', category: 'Work' },
+  { icon: '🧾', name: 'receipt', keywords: 'invoice money expense', category: 'Work' },
+  { icon: '🗓️', name: 'calendar', keywords: 'date schedule plan', category: 'Work' },
+  { icon: '⏰', name: 'clock', keywords: 'time alarm deadline', category: 'Work' },
+  { icon: '☕', name: 'coffee', keywords: 'drink break morning', category: 'Life' },
+  { icon: '🏠', name: 'home', keywords: 'house family', category: 'Life' },
+  { icon: '🛒', name: 'cart', keywords: 'shop grocery buy', category: 'Life' },
+  { icon: '🍳', name: 'cooking', keywords: 'food recipe kitchen', category: 'Life' },
+  { icon: '🏃', name: 'exercise', keywords: 'run sport fitness', category: 'Life' },
+  { icon: '🛌', name: 'rest', keywords: 'sleep bed relax', category: 'Life' },
+  { icon: '❤️', name: 'heart', keywords: 'love favorite health', category: 'Life' },
+  { icon: '🌱', name: 'plant', keywords: 'grow garden nature', category: 'Life' },
+  { icon: '🐾', name: 'pet', keywords: 'animal paw dog cat', category: 'Life' },
+  { icon: '🎁', name: 'gift', keywords: 'present birthday', category: 'Life' },
+  { icon: '💊', name: 'health', keywords: 'medicine pill doctor', category: 'Life' },
+  { icon: '✈️', name: 'travel', keywords: 'plane trip flight', category: 'Life' },
+  { icon: '💡', name: 'idea', keywords: 'light bulb inspiration', category: 'Ideas' },
+  { icon: '🎯', name: 'target', keywords: 'goal focus aim', category: 'Ideas' },
+  { icon: '🧭', name: 'compass', keywords: 'direction explore', category: 'Ideas' },
+  { icon: '🧪', name: 'experiment', keywords: 'science lab test', category: 'Ideas' },
+  { icon: '🧠', name: 'brain', keywords: 'think mind smart', category: 'Ideas' },
+  { icon: '✨', name: 'sparkles', keywords: 'magic new bright', category: 'Ideas' },
+  { icon: '🔖', name: 'bookmark', keywords: 'save read later', category: 'Ideas' },
+  { icon: '🎨', name: 'art', keywords: 'paint design creative', category: 'Ideas' },
+  { icon: '🧩', name: 'puzzle', keywords: 'solve piece logic', category: 'Ideas' },
+  { icon: '🔥', name: 'fire', keywords: 'hot urgent energy', category: 'Ideas' },
+  { icon: '⭐', name: 'star', keywords: 'favorite important', category: 'Ideas' },
+  { icon: '🚀', name: 'rocket', keywords: 'launch start fast', category: 'Ideas' },
+  { icon: '🎵', name: 'music', keywords: 'song audio listen', category: 'Media' },
+  { icon: '🎬', name: 'film', keywords: 'movie video cinema', category: 'Media' },
+  { icon: '📷', name: 'camera', keywords: 'photo picture', category: 'Media' },
+  { icon: '🎮', name: 'game', keywords: 'play controller fun', category: 'Media' },
+  { icon: '📖', name: 'reading', keywords: 'book open story', category: 'Media' },
+  { icon: '🎧', name: 'headphones', keywords: 'audio podcast music', category: 'Media' },
+  { icon: '🖥️', name: 'screen', keywords: 'computer desktop work', category: 'Media' },
+  { icon: '📱', name: 'phone', keywords: 'mobile app device', category: 'Media' },
+  { icon: '🌙', name: 'night', keywords: 'moon dark sleep', category: 'Media' },
+  { icon: '☀️', name: 'sun', keywords: 'day light morning', category: 'Media' },
 ];
 
 @Component({
@@ -84,8 +126,11 @@ export class NoteEditor {
   protected readonly coverError = signal<string | null>(null);
   protected readonly coverAdjusting = signal(false);
   protected readonly coverDragPosition = signal<CoverPosition | null>(null);
+  protected readonly coverUrlOpen = signal(false);
   protected readonly iconError = signal<string | null>(null);
-  protected readonly iconChoices = NOTE_ICONS;
+  protected readonly iconQuery = signal('');
+  protected readonly iconCategory = signal<string>('All');
+  protected readonly recentIcons = signal<string[]>(loadRecentIcons());
   protected readonly isImageIcon = isImageIcon;
 
   protected readonly ancestors = computed(() => this.store.parentChain(this.note()));
@@ -95,9 +140,31 @@ export class NoteEditor {
     return `${position.x}% ${position.y}%`;
   });
 
+  protected readonly iconCategories = computed(() => [
+    'All',
+    ...new Set(NOTE_ICONS.map((choice) => choice.category)),
+  ]);
+  protected readonly filteredIcons = computed(() => {
+    const query = this.iconQuery().trim().toLowerCase();
+    const category = this.iconCategory();
+    return NOTE_ICONS.filter(
+      (choice) =>
+        (category === 'All' || choice.category === category) &&
+        (query.length === 0 ||
+          `${choice.name} ${choice.keywords}`.toLowerCase().includes(query)),
+    );
+  });
+  protected readonly recentChoices = computed(() => {
+    const byIcon = new Map(NOTE_ICONS.map((choice) => [choice.icon, choice]));
+    return this.recentIcons()
+      .map((icon) => byIcon.get(icon))
+      .filter((choice): choice is NoteIconChoice => choice !== undefined);
+  });
+
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly addButton = viewChild<ElementRef<HTMLButtonElement>>('addButton');
   private readonly coverPicker = viewChild<ElementRef<HTMLInputElement>>('coverPicker');
+  private readonly coverUrlInput = viewChild<ElementRef<HTMLInputElement>>('coverUrlInput');
   private readonly iconPicker = viewChild<ElementRef<HTMLInputElement>>('iconPicker');
   private readonly iconInput = viewChild<ElementRef<HTMLInputElement>>('iconInput');
   private readonly iconUrlInput = viewChild<ElementRef<HTMLInputElement>>('iconUrlInput');
@@ -138,9 +205,12 @@ export class NoteEditor {
       this.focusImageColumn.set(null);
       this.coverError.set(null);
       this.coverAdjusting.set(false);
+      this.coverUrlOpen.set(false);
       this.coverDrag = null;
       this.coverDragPosition.set(null);
       this.iconError.set(null);
+      this.iconQuery.set('');
+      this.iconCategory.set('All');
     });
   }
 
@@ -187,7 +257,26 @@ export class NoteEditor {
 
   protected removeCover(): void {
     this.coverError.set(null);
+    this.coverUrlOpen.set(false);
     this.store.setCover(this.note().id, '');
+  }
+
+  protected toggleCoverUrl(): void {
+    const open = !this.coverUrlOpen();
+    this.coverUrlOpen.set(open);
+    this.coverError.set(null);
+    if (open) setTimeout(() => this.coverUrlInput()?.nativeElement.focus());
+  }
+
+  protected applyCoverUrl(): void {
+    const input = this.coverUrlInput()?.nativeElement;
+    const value = input?.value.trim() ?? '';
+    if (!value) {
+      this.coverError.set(COVER_IMAGE_ERROR);
+      input?.focus();
+      return;
+    }
+    void this.importCoverUrl(value);
   }
 
   protected chooseCoverLayout(layout: CoverLayout): void {
@@ -273,6 +362,7 @@ export class NoteEditor {
     this.iconMenuOpen.set(open);
     this.iconError.set(null);
     if (open) {
+      this.iconQuery.set('');
       setTimeout(() => this.iconInput()?.nativeElement.focus());
     }
   }
@@ -281,10 +371,29 @@ export class NoteEditor {
     this.iconMenuOpen.set(false);
   }
 
+  protected onIconQuery(event: Event): void {
+    this.iconQuery.set((event.target as HTMLInputElement).value);
+  }
+
+  protected setIconCategory(category: string): void {
+    this.iconCategory.set(category);
+  }
+
   protected chooseIcon(icon: string): void {
     this.store.setIcon(this.note().id, icon);
+    if (!isImageIcon(icon)) this.rememberIcon(icon);
     this.iconError.set(null);
     this.iconMenuOpen.set(false);
+  }
+
+  private rememberIcon(icon: string): void {
+    const next = [icon, ...this.recentIcons().filter((item) => item !== icon)].slice(0, 8);
+    this.recentIcons.set(next);
+    try {
+      localStorage.setItem(RECENT_ICONS_KEY, JSON.stringify(next));
+    } catch {
+      // Recents are a convenience; the picker still works without storage.
+    }
   }
 
   protected applyCustomIcon(): void {
@@ -342,7 +451,7 @@ export class NoteEditor {
 
   private async importIconUrl(value: string): Promise<void> {
     this.iconError.set(null);
-    const source = iconSourceFrom(value);
+    const source = imageSourceFrom(value);
     if (!source) {
       this.iconError.set(ICON_IMAGE_ERROR);
       return;
@@ -365,6 +474,23 @@ export class NoteEditor {
       this.store.setCover(this.note().id, cover);
     } catch (error) {
       this.coverError.set(error instanceof Error ? error.message : 'Could not read that image.');
+    }
+  }
+
+  private async importCoverUrl(value: string): Promise<void> {
+    this.coverError.set(null);
+    const source = imageSourceFrom(value);
+    if (!source) {
+      this.coverError.set(COVER_IMAGE_ERROR);
+      return;
+    }
+
+    try {
+      await loadImage(source);
+      this.store.setCover(this.note().id, source);
+      this.coverUrlOpen.set(false);
+    } catch {
+      this.coverError.set(COVER_IMAGE_ERROR);
     }
   }
 
@@ -684,6 +810,7 @@ export class NoteEditor {
 
   protected closePopovers(): void {
     this.iconMenuOpen.set(false);
+    this.coverUrlOpen.set(false);
     this.closeMenu();
   }
 }
@@ -696,7 +823,7 @@ function clampPercent(value: number): number {
   return Math.min(100, Math.max(0, value));
 }
 
-function iconSourceFrom(value: string): string | null {
+function imageSourceFrom(value: string): string | null {
   if (/^data:image\//i.test(value)) return value;
 
   const withProtocol = value.startsWith('//') ? `https:${value}` : value;
@@ -705,6 +832,19 @@ function iconSourceFrom(value: string): string | null {
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
   } catch {
     return null;
+  }
+}
+
+function loadRecentIcons(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_ICONS_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((icon): icon is string => typeof icon === 'string').slice(0, 8)
+      : [];
+  } catch {
+    return [];
   }
 }
 

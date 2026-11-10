@@ -339,6 +339,107 @@ describe('NoteEditor', () => {
     });
   });
 
+  it('filters the icon picker by search text and category', () => {
+    const { fixture } = setup([note('n_note')]);
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector<HTMLButtonElement>('.icon-add')!.click();
+    fixture.detectChanges();
+
+    const search = element.querySelector<HTMLInputElement>('.icon-search')!;
+    search.value = 'coffee';
+    search.dispatchEvent(inputEvent());
+    fixture.detectChanges();
+
+    const found = Array.from(element.querySelectorAll<HTMLButtonElement>('.icon-choice')).map(
+      (button) => button.textContent?.trim(),
+    );
+    expect(found).toEqual(['☕']);
+
+    search.value = 'zzzz';
+    search.dispatchEvent(inputEvent());
+    fixture.detectChanges();
+    expect(element.querySelectorAll('.icon-choice')).toHaveLength(0);
+    expect(element.querySelector('.icon-empty')?.textContent).toContain('No icons match');
+
+    search.value = '';
+    search.dispatchEvent(inputEvent());
+    fixture.detectChanges();
+    const media = Array.from(
+      element.querySelectorAll<HTMLButtonElement>('.icon-category'),
+    ).find((button) => button.textContent?.trim() === 'Media')!;
+    media.click();
+    fixture.detectChanges();
+
+    const icons = Array.from(element.querySelectorAll<HTMLButtonElement>('.icon-choice')).map(
+      (button) => button.textContent?.trim(),
+    );
+    expect(icons).toContain('🎵');
+    expect(icons).not.toContain('📝');
+    expect(media.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('remembers recently used icons', () => {
+    const { fixture, store } = setup([note('n_note')]);
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector<HTMLButtonElement>('.icon-add')!.click();
+    fixture.detectChanges();
+
+    const search = element.querySelector<HTMLInputElement>('.icon-search')!;
+    search.value = 'coffee';
+    search.dispatchEvent(inputEvent());
+    fixture.detectChanges();
+    element.querySelector<HTMLButtonElement>('.icon-choice')!.click();
+    fixture.detectChanges();
+
+    expect(store.notes().find((item) => item.id === 'n_note')!.icon).toBe('☕');
+    expect(JSON.parse(localStorage.getItem('the-noter.ui.recent-icons.v1')!)).toEqual(['☕']);
+
+    element.querySelector<HTMLButtonElement>('.icon-add')!.click();
+    fixture.detectChanges();
+    const recent = element.querySelector<HTMLButtonElement>('.icon-recent .icon-choice');
+    expect(recent?.textContent?.trim()).toBe('☕');
+  });
+
+  it('sets a cover from a valid URL', async () => {
+    stubImage(true);
+    const { fixture, store } = setup([note('n_note')]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    element.querySelector<HTMLButtonElement>('.cover-url-toggle')!.click();
+    fixture.detectChanges();
+    const input = element.querySelector<HTMLInputElement>('.cover-url-input')!;
+    input.value = 'https://example.com/cover.png';
+    element.querySelector<HTMLButtonElement>('.cover-url-set')!.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(store.notes().find((item) => item.id === 'n_note')!.cover).toBe(
+        'https://example.com/cover.png',
+      );
+    });
+    expect(element.querySelector('.cover-url')).toBeNull();
+  });
+
+  it('reports a cover URL that cannot be loaded', async () => {
+    stubImage(false);
+    const { fixture, store } = setup([note('n_note')]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    element.querySelector<HTMLButtonElement>('.cover-url-toggle')!.click();
+    fixture.detectChanges();
+    element.querySelector<HTMLInputElement>('.cover-url-input')!.value =
+      'https://example.com/missing.png';
+    element.querySelector<HTMLButtonElement>('.cover-url-set')!.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(element.querySelector('.cover-error')?.textContent).toContain(
+        "We couldn't load that cover.",
+      );
+    });
+    expect(store.notes().find((item) => item.id === 'n_note')!.cover).toBe('');
+  });
+
   it('warns when an image icon cannot be loaded and asks for another image', async () => {
     stubImage(false);
     const { fixture, store } = setup([note('n_note', { icon: '' })]);
