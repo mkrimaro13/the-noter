@@ -43,9 +43,7 @@ function escape(): void {
 }
 
 function openPalette(): void {
-  document.dispatchEvent(
-    new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }),
-  );
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
 }
 
 describe('App', () => {
@@ -339,5 +337,34 @@ describe('App', () => {
     const { fixture } = setup();
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.empty')).not.toBeNull();
+  });
+
+  it('undoes and redoes with keyboard shortcuts outside text fields', () => {
+    const { fixture, store } = setup([note('n_a', { title: 'A' })]);
+    store.setTitle('n_a', 'B');
+    fixture.detectChanges();
+
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }),
+    );
+    expect(store.notes()[0].title).toBe('A');
+
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'z',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+      }),
+    );
+    expect(store.notes()[0].title).toBe('B');
+
+    // Text fields keep their native undo instead of touching note history.
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    store.setTitle('n_a', 'C');
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    expect(store.notes()[0].title).toBe('C');
+    input.remove();
   });
 });

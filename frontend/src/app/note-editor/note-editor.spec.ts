@@ -1023,6 +1023,76 @@ describe('NoteEditor', () => {
     expect(element.querySelector('.word-count')?.textContent).toContain('1 word');
     expect(element.querySelector('.status-word-count')?.textContent).toContain('1 word');
   });
+
+  it('undoes and redoes edits from the toolbar', () => {
+    const { fixture, store } = setup([note('n_note', { title: 'Before' })]);
+    const element = fixture.nativeElement as HTMLElement;
+    const buttons = element.querySelectorAll<HTMLButtonElement>('.history-button');
+
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0].disabled).toBe(true);
+    expect(buttons[1].disabled).toBe(true);
+
+    const title = element.querySelector<HTMLInputElement>('.title')!;
+    title.value = 'After';
+    title.dispatchEvent(inputEvent());
+    fixture.detectChanges();
+
+    expect(buttons[0].disabled).toBe(false);
+    buttons[0].click();
+    fixture.detectChanges();
+    expect(store.notes()[0].title).toBe('Before');
+    expect(buttons[1].disabled).toBe(false);
+
+    buttons[1].click();
+    fixture.detectChanges();
+    expect(store.notes()[0].title).toBe('After');
+  });
+
+  it('exports the note as Markdown, HTML, and PDF', async () => {
+    const { fixture } = setup([note('n_note', { title: 'Export me' })]);
+    const element = fixture.nativeElement as HTMLElement;
+    const create = vi.fn(() => 'blob:note');
+    const revoke = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', {
+      value: create,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      value: revoke,
+      configurable: true,
+      writable: true,
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const toggle = element.querySelector<HTMLButtonElement>('.export-toggle')!;
+    toggle.click();
+    fixture.detectChanges();
+    const options = element.querySelectorAll<HTMLButtonElement>('.export-option');
+    expect(options).toHaveLength(3);
+
+    options[0].click();
+    await vi.waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    fixture.detectChanges();
+    expect(element.querySelector('.export-menu')).toBeNull();
+
+    toggle.click();
+    fixture.detectChanges();
+    element.querySelectorAll<HTMLButtonElement>('.export-option')[1].click();
+    await vi.waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+
+    const print = vi.fn();
+    const win = {
+      document: { open: vi.fn(), write: vi.fn(), close: vi.fn(), title: '' },
+      print,
+    };
+    vi.spyOn(window, 'open').mockReturnValue(win as unknown as Window);
+    toggle.click();
+    fixture.detectChanges();
+    element.querySelectorAll<HTMLButtonElement>('.export-option')[2].click();
+    await vi.waitFor(() => expect(win.document.write).toHaveBeenCalled());
+  });
 });
 
 function editorFor(fixture: ReturnType<typeof setup>['fixture'], blockId: string): NoteBlockEditor {

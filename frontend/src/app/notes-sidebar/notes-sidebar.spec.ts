@@ -48,6 +48,12 @@ function titles(element: HTMLElement): string[] {
   );
 }
 
+function rowFor(element: HTMLElement, title: string): HTMLElement {
+  return Array.from(element.querySelectorAll<HTMLElement>('.note-row')).find(
+    (row) => row.querySelector('.note-title')?.textContent?.trim() === title,
+  )!;
+}
+
 describe('NotesSidebar', () => {
   beforeEach(() => TestBed.resetTestingModule());
 
@@ -169,14 +175,14 @@ describe('NotesSidebar', () => {
     row.querySelector<HTMLButtonElement>('.note-move')!.click();
     fixture.detectChanges();
 
-    const targets = Array.from(
-      element.querySelectorAll<HTMLElement>('.move-target span'),
-    ).map((node) => node.textContent?.trim());
+    const targets = Array.from(element.querySelectorAll<HTMLElement>('.move-target span')).map(
+      (node) => node.textContent?.trim(),
+    );
     expect(targets).toEqual(['Root', 'Target']);
 
-    const target = Array.from(
-      element.querySelectorAll<HTMLButtonElement>('.move-target'),
-    ).find((button) => button.textContent?.includes('Target'))!;
+    const target = Array.from(element.querySelectorAll<HTMLButtonElement>('.move-target')).find(
+      (button) => button.textContent?.includes('Target'),
+    )!;
     target.click();
     fixture.detectChanges();
 
@@ -200,9 +206,9 @@ describe('NotesSidebar', () => {
     row.querySelector<HTMLButtonElement>('.note-move')!.click();
     fixture.detectChanges();
 
-    const targets = Array.from(
-      element.querySelectorAll<HTMLElement>('.move-target span'),
-    ).map((node) => node.textContent?.trim());
+    const targets = Array.from(element.querySelectorAll<HTMLElement>('.move-target span')).map(
+      (node) => node.textContent?.trim(),
+    );
     expect(targets).toEqual(['Root', 'Other']);
   });
 
@@ -311,5 +317,78 @@ describe('NotesSidebar', () => {
       'Your notes will live here.',
     );
     expect(element.querySelector('.footer-count')?.textContent?.trim()).toBe('0 notes');
+  });
+
+  it('moves a note to the trash and restores it from the sidebar', () => {
+    const { fixture, store } = setup([note('n_a'), note('n_b')]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    const row = rowFor(element, 'n_a');
+    row.querySelector<HTMLButtonElement>('.note-delete')!.click();
+    fixture.detectChanges();
+    expect(row.querySelector('.delete-confirm')?.textContent).toContain('Move to trash?');
+
+    row.querySelector<HTMLButtonElement>('.confirm-action.danger')!.click();
+    fixture.detectChanges();
+
+    expect(store.total()).toBe(1);
+    expect(store.trashedNotes().map((item) => item.id)).toEqual(['n_a']);
+    expect(element.querySelector('.trash-count')?.textContent?.trim()).toBe('1');
+
+    element.querySelector<HTMLButtonElement>('.trash-toggle')!.click();
+    fixture.detectChanges();
+    expect(element.querySelector('.trash-title')?.textContent?.trim()).toBe('n_a');
+
+    element.querySelector<HTMLButtonElement>('.trash-action')!.click();
+    fixture.detectChanges();
+
+    expect(store.trashedNotes()).toHaveLength(0);
+    expect(store.total()).toBe(2);
+    expect(titles(element)).toContain('n_a');
+  });
+
+  it('permanently deletes one note from the trash', () => {
+    const { fixture, store } = setup([note('n_a'), note('n_b')]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    store.deleteNote('n_a');
+    fixture.detectChanges();
+    element.querySelector<HTMLButtonElement>('.trash-toggle')!.click();
+    fixture.detectChanges();
+
+    // The first action restores, the second one asks to delete permanently.
+    const actions = element.querySelectorAll<HTMLButtonElement>('.trash-row .trash-action');
+    actions[1].click();
+    fixture.detectChanges();
+    expect(element.querySelector('.trash-row.confirming')).not.toBeNull();
+
+    element.querySelector<HTMLButtonElement>('.trash-row .trash-action.danger')!.click();
+    fixture.detectChanges();
+
+    expect(store.trashedNotes()).toHaveLength(0);
+    expect(store.total()).toBe(1);
+  });
+
+  it('empties the whole trash after confirming', () => {
+    const { fixture, store } = setup([note('n_a'), note('n_b')]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    store.deleteNote('n_a');
+    store.deleteNote('n_b');
+    fixture.detectChanges();
+    element.querySelector<HTMLButtonElement>('.trash-toggle')!.click();
+    fixture.detectChanges();
+
+    element.querySelector<HTMLButtonElement>('.trash-empty-button')!.click();
+    fixture.detectChanges();
+    expect(element.querySelector('.trash-empty-confirm')?.textContent).toContain(
+      'Delete everything permanently?',
+    );
+
+    element.querySelector<HTMLButtonElement>('.trash-empty-confirm .danger')!.click();
+    fixture.detectChanges();
+
+    expect(store.trashedNotes()).toHaveLength(0);
+    expect(store.total()).toBe(0);
   });
 });

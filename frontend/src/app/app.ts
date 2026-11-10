@@ -146,9 +146,28 @@ export class App {
   }
 
   protected handleKeydown(event: KeyboardEvent): void {
-    if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'k') {
+    const modifier = event.metaKey || event.ctrlKey;
+    const key = event.key.toLowerCase();
+
+    if (modifier && !event.altKey && key === 'k') {
       event.preventDefault();
       this.paletteOpen.update((open) => !open);
+      return;
+    }
+
+    // Let text fields keep their native undo while typing; the note-level
+    // history is for structural changes outside an editor.
+    if (modifier && !event.altKey && !isEditableTarget(event.target)) {
+      if (key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) this.store.redo();
+        else this.store.undo();
+        return;
+      }
+      if (key === 'y') {
+        event.preventDefault();
+        this.store.redo();
+      }
     }
   }
 
@@ -222,4 +241,11 @@ function writePreference(key: string, value: boolean): void {
   } catch {
     // Ignore unavailable storage; the layout still works for this session.
   }
+}
+
+/** True for fields where the browser should keep its own undo history. */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
 }

@@ -146,6 +146,69 @@
           @if (words() > 0) {
             <span class="word-count">{{ words() }} {{ words() === 1 ? 'word' : 'words' }}</span>
           }
+          <span class="history-tools" role="group" aria-label="History">
+            <button
+              class="history-button"
+              type="button"
+              (click)="undo()"
+              [disabled]="!store.canUndo()"
+              [attr.title]="store.canUndo() ? 'Undo ' + store.undoLabel() : 'Nothing to undo'"
+              aria-label="Undo"
+            >
+              <app-icon name="undo" [size]="12" />
+            </button>
+            <button
+              class="history-button"
+              type="button"
+              (click)="redo()"
+              [disabled]="!store.canRedo()"
+              [attr.title]="store.canRedo() ? 'Redo ' + store.redoLabel() : 'Nothing to redo'"
+              aria-label="Redo"
+            >
+              <app-icon name="redo" [size]="12" />
+            </button>
+          </span>
+          <span class="export-wrap">
+            <button
+              class="export-toggle"
+              type="button"
+              (click)="toggleExportMenu()"
+              [attr.aria-expanded]="exportMenuOpen()"
+              aria-haspopup="menu"
+            >
+              <app-icon name="download" [size]="11" />
+              Export
+            </button>
+            @if (exportMenuOpen()) {
+              <div class="export-backdrop" (click)="closeExportMenu()"></div>
+              <div class="export-menu" role="menu" aria-label="Export note">
+                <button
+                  class="export-option"
+                  type="button"
+                  role="menuitem"
+                  (click)="exportNote('markdown')"
+                >
+                  Markdown (.md)
+                </button>
+                <button
+                  class="export-option"
+                  type="button"
+                  role="menuitem"
+                  (click)="exportNote('html')"
+                >
+                  HTML (.html)
+                </button>
+                <button
+                  class="export-option"
+                  type="button"
+                  role="menuitem"
+                  (click)="exportNote('pdf')"
+                >
+                  PDF (print)
+                </button>
+              </div>
+            }
+          </span>
         </span>
       </div>
 

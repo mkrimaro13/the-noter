@@ -133,6 +133,8 @@ export interface Note {
   blocks: NoteBlock[];
   createdAt: number;
   updatedAt: number;
+  /** When set, the note is in the trash and must not appear in the tree. */
+  deletedAt: number | null;
 }
 
 /** True when the note icon is an image source instead of an emoji or short text. */
@@ -383,5 +385,6 @@ export function createNote(parentId: string | null = null): Note {
     blocks: [createBlock('text')],
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
   };
 }

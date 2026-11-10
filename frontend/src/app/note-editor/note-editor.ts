@@ -122,6 +122,7 @@ export class NoteEditor {
   protected readonly blockMenu = BLOCK_MENU;
   protected readonly menuOpen = signal(false);
   protected readonly iconMenuOpen = signal(false);
+  protected readonly exportMenuOpen = signal(false);
   protected readonly focusMetaId = signal<string | null>(null);
   protected readonly focusBlockId = signal<string | null>(null);
   protected readonly focusImageColumn = signal<{ blockId: string; index: number } | null>(null);
@@ -202,6 +203,7 @@ export class NoteEditor {
       this.noteId();
       this.menuOpen.set(false);
       this.iconMenuOpen.set(false);
+      this.exportMenuOpen.set(false);
       this.focusMetaId.set(null);
       this.focusBlockId.set(null);
       this.focusImageColumn.set(null);
@@ -813,7 +815,48 @@ export class NoteEditor {
   protected closePopovers(): void {
     this.iconMenuOpen.set(false);
     this.coverUrlOpen.set(false);
+    this.exportMenuOpen.set(false);
     this.closeMenu();
+  }
+
+  protected undo(): void {
+    this.store.undo();
+  }
+
+  protected redo(): void {
+    this.store.redo();
+  }
+
+  protected toggleExportMenu(): void {
+    this.exportMenuOpen.update((open) => !open);
+  }
+
+  protected closeExportMenu(): void {
+    this.exportMenuOpen.set(false);
+  }
+
+  protected async exportNote(format: 'markdown' | 'html' | 'pdf'): Promise<void> {
+    this.exportMenuOpen.set(false);
+    const note = this.note();
+    // Exporting is rare, so keep its HTML/Markdown builders out of the initial
+    // bundle and load them only when the user asks for a file.
+    const { downloadText, exportFileName, noteToHtml, noteToMarkdown, printHtml } = await import(
+      '../export'
+    );
+
+    if (format === 'markdown') {
+      const markdown = await noteToMarkdown(note, { assets: this.assets });
+      downloadText(exportFileName(note, 'md'), markdown, 'text/markdown');
+      return;
+    }
+
+    const html = await noteToHtml(note, { assets: this.assets });
+    if (format === 'html') {
+      downloadText(exportFileName(note, 'html'), html, 'text/html');
+      return;
+    }
+
+    printHtml(html, note.title.trim() || 'Untitled note');
   }
 }
 

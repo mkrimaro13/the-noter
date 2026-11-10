@@ -46,6 +46,9 @@ export class NotesSidebar {
   protected readonly sync = inject(SyncService);
   protected readonly isImageIcon = isImageIcon;
   protected readonly confirmingDelete = signal<string | null>(null);
+  protected readonly confirmingPurge = signal<string | null>(null);
+  protected readonly confirmingEmpty = signal(false);
+  protected readonly trashOpen = signal(false);
   protected readonly movingNote = signal<string | null>(null);
   protected readonly collapsedNotes = signal<ReadonlySet<string>>(loadCollapsed());
   protected readonly backupStatus = signal<string | null>(null);
@@ -110,6 +113,15 @@ export class NotesSidebar {
       this.store.selectedId();
       this.confirmingDelete.set(null);
       this.movingNote.set(null);
+    });
+
+    // An empty trash should not stay open, since there is nothing left to show.
+    effect(() => {
+      if (this.store.trashedNotes().length === 0) {
+        this.trashOpen.set(false);
+        this.confirmingPurge.set(null);
+        this.confirmingEmpty.set(false);
+      }
     });
 
     effect(() => {
@@ -188,7 +200,41 @@ export class NotesSidebar {
 
   protected cancelConfirm(): void {
     this.confirmingDelete.set(null);
+    this.confirmingPurge.set(null);
+    this.confirmingEmpty.set(false);
     this.movingNote.set(null);
+  }
+
+  protected toggleTrash(): void {
+    this.trashOpen.update((open) => !open);
+    this.confirmingPurge.set(null);
+    this.confirmingEmpty.set(false);
+  }
+
+  protected restoreNote(note: Note): void {
+    this.store.restoreNote(note.id);
+    this.confirmingPurge.set(null);
+    this.navigated.emit();
+  }
+
+  protected askPurge(note: Note): void {
+    this.confirmingPurge.update((current) => (current === note.id ? null : note.id));
+    this.confirmingEmpty.set(false);
+  }
+
+  protected confirmPurge(note: Note): void {
+    this.store.purgeNote(note.id);
+    this.confirmingPurge.set(null);
+  }
+
+  protected askEmptyTrash(): void {
+    this.confirmingEmpty.update((value) => !value);
+    this.confirmingPurge.set(null);
+  }
+
+  protected confirmEmptyTrash(): void {
+    this.store.emptyTrash();
+    this.confirmingEmpty.set(false);
   }
 
   protected askMove(note: Note, event: Event): void {

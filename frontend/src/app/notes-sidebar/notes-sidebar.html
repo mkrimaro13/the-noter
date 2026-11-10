@@ -121,13 +121,13 @@
 
           @if (confirmingDelete() === row.note.id) {
             <div class="delete-confirm">
-              <span>Delete?</span>
+              <span>Move to trash?</span>
               <button
                 class="confirm-action danger"
                 type="button"
                 (click)="confirmDelete(row.note)"
-                aria-label="Confirm delete"
-                title="Delete note"
+                aria-label="Move note to trash"
+                title="Move to trash"
               >
                 <app-icon name="check" [size]="12" />
               </button>
@@ -216,6 +216,106 @@
         </p>
       }
     </nav>
+
+    <section class="trash" [class.open]="trashOpen()">
+      <button
+        class="trash-toggle"
+        type="button"
+        (click)="toggleTrash()"
+        [attr.aria-expanded]="trashOpen()"
+        aria-controls="trash-list"
+      >
+        <app-icon name="trash" [size]="13" />
+        <span>Trash</span>
+        @if (store.trashedNotes().length > 0) {
+          <span class="trash-count">{{ store.trashedNotes().length }}</span>
+        }
+        <app-icon
+          class="trash-chevron"
+          [name]="trashOpen() ? 'chevron-down' : 'chevron-right'"
+          [size]="12"
+        />
+      </button>
+
+      @if (trashOpen()) {
+        <div class="trash-list" id="trash-list">
+          @for (note of store.trashedNotes(); track note.id) {
+            <div class="trash-row" [class.confirming]="confirmingPurge() === note.id">
+              <span class="trash-title" [title]="displayTitle(note)">{{ displayTitle(note) }}</span>
+              @if (confirmingPurge() === note.id) {
+                <button
+                  class="trash-action danger"
+                  type="button"
+                  (click)="confirmPurge(note)"
+                  aria-label="Delete permanently"
+                  title="Delete permanently"
+                >
+                  <app-icon name="check" [size]="12" />
+                </button>
+                <button
+                  class="trash-action"
+                  type="button"
+                  (click)="askPurge(note)"
+                  aria-label="Cancel"
+                  title="Cancel"
+                >
+                  <app-icon name="x" [size]="12" />
+                </button>
+              } @else {
+                <button
+                  class="trash-action"
+                  type="button"
+                  (click)="restoreNote(note)"
+                  aria-label="Restore note"
+                  title="Restore"
+                >
+                  <app-icon name="undo" [size]="12" />
+                </button>
+                <button
+                  class="trash-action"
+                  type="button"
+                  (click)="askPurge(note)"
+                  aria-label="Delete permanently"
+                  title="Delete permanently"
+                >
+                  <app-icon name="trash" [size]="12" />
+                </button>
+              }
+            </div>
+          } @empty {
+            <p class="trash-empty">Trash is empty.</p>
+          }
+
+          @if (confirmingEmpty()) {
+            <div class="trash-empty-confirm">
+              <span>Delete everything permanently?</span>
+              <button
+                class="trash-action danger"
+                type="button"
+                (click)="confirmEmptyTrash()"
+                aria-label="Empty trash"
+                title="Empty trash"
+              >
+                <app-icon name="check" [size]="12" />
+              </button>
+              <button
+                class="trash-action"
+                type="button"
+                (click)="askEmptyTrash()"
+                aria-label="Cancel"
+                title="Cancel"
+              >
+                <app-icon name="x" [size]="12" />
+              </button>
+            </div>
+          } @else {
+            <button class="trash-empty-button" type="button" (click)="askEmptyTrash()">
+              Empty trash
+            </button>
+          }
+        </div>
+      }
+    </section>
 
     <div class="backup-actions">
       <button

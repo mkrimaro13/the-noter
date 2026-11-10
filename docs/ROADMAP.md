@@ -111,11 +111,11 @@ endurecimiento para producción.
 
 #### P0.4 — Seguridad de datos del usuario
 
-- [ ] Papelera con restauración, en vez de borrado definitivo inmediato.
-- [ ] Undo/redo a nivel de nota o bloque.
+- [x] Papelera con restauración, en vez de borrado definitivo inmediato.
+- [x] Undo/redo a nivel de nota o bloque.
 - [x] Export/import JSON completo y backup descargable.
-- [ ] Export Markdown/PDF/HTML.
-- [ ] **Done when:** un borrado accidental o una nota corrupta se puede recuperar sin tocar
+- [x] Export Markdown/PDF/HTML.
+- [x] **Done when:** un borrado accidental o una nota corrupta se puede recuperar sin tocar
       CouchDB.
 
 #### P0.5 — Endurecer la sincronización
@@ -288,13 +288,14 @@ endurecimiento para producción.
 | 7 | Metadatos tipados | ✅ Completada | `feat(metadata): etapa 7 - metadatos tipados` |
 | 8 | Búsqueda de iconos y cover por URL | ✅ Completada | `feat(icons): etapa 8 - busqueda de iconos y cover por URL` |
 | 9 | Almacenamiento de imágenes como attachments + IndexedDB | ✅ Completada | `feat(assets): etapa 9 - imagenes como attachments e IndexedDB` |
-| 10 | Papelera, undo/redo y export Markdown/PDF | ⏳ Pendiente | — |
+| 10 | Papelera, undo/redo y export Markdown/PDF | ✅ Completada | `feat(data): etapa 10 - papelera, undo/redo y export` |
 | 11 | Endurecimiento de sync (compactación, migraciones, conflictos) | ⏳ Pendiente | — |
 | 12 | Búsqueda con resaltado, filtros y favoritos | ⏳ Pendiente | — |
 | 13 | E2E, accesibilidad, i18n y rendimiento | ⏳ Pendiente | — |
 
 ### Próxima etapa
 
-**Etapa 10 — Papelera, undo/redo y export Markdown/PDF.** Añadir una papelera con restauración,
-historial de deshacer/rehacer por nota o bloque, y exportación a Markdown/PDF/HTML, de modo que un
-borrado accidental o una nota corrupta se pueda recuperar sin tocar CouchDB.
+**Etapa 11 — Endurecimiento de sync (compactación, migraciones, conflictos).** Compactar y purgar
+tombstones/revisiones de forma programada, versionar el `schema` de los documentos con migraciones,
+y añadir una UI de conflictos que permita ver las dos versiones y elegir o mezclar, junto con un
+botón de “sincronizar ahora” y diagnóstico del estado.

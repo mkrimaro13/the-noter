@@ -621,6 +621,153 @@
   white-space: nowrap;
 }
 
+.trash {
+  flex: 0 0 auto;
+  margin: 0 8px 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.trash-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.trash-toggle:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.trash-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.trash-chevron {
+  margin-left: auto;
+}
+
+.trash-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 180px;
+  margin-top: 4px;
+  overflow-y: auto;
+}
+
+.trash-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 3px 3px 8px;
+  border-radius: 6px;
+}
+
+.trash-row:hover,
+.trash-row.confirming {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.trash-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.trash-action:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+
+.trash-action.danger:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.trash-empty {
+  margin: 2px 0;
+  padding: 4px 8px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-style: italic;
+}
+
+.trash-empty-button {
+  margin-top: 4px;
+  padding: 5px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trash-empty-button:hover {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 22%, var(--line-soft));
+}
+
+.trash-empty-confirm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 5px 6px 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--line-soft));
+  border-radius: 6px;
+  color: var(--danger);
+  font-size: 10px;
+}
+
+.trash-empty-confirm span {
+  flex: 1;
+}
+
 .backup-actions {
   display: flex;
   gap: 6px;

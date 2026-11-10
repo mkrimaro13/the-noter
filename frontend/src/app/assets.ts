@@ -91,6 +91,13 @@ export class AssetStore {
     return url;
   }
 
+  /** Resolves an asset ref to an inline data URL, used by exporters. */
+  async dataUrl(src: string): Promise<string> {
+    if (!isAssetRef(src)) return src;
+    const blob = await this.getBlob(src);
+    return blob ? blobToDataUrl(blob) : '';
+  }
+
   private async store(ref: string, blob: Blob): Promise<void> {
     this.memory.set(ref, blob);
     await this.write(ref, blob);

@@ -41,6 +41,24 @@ export interface ImportResult {
   skipped: number;
 }
 
+interface NoteChange {
+  id: string;
+  before: Note | null;
+  after: Note | null;
+}
+
+type HistoryKind = 'edit' | 'create' | 'delete' | 'restore' | 'purge';
+
+interface HistoryEntry {
+  changes: NoteChange[];
+  kind: HistoryKind;
+  label: string;
+  at: number;
+}
+
+const HISTORY_LIMIT = 100;
+const HISTORY_COALESCE_MS = 900;
+
 @Injectable({ providedIn: 'root' })
 export class NoteStore {
   private readonly destroyRef = inject(DestroyRef);
@@ -49,8 +67,19 @@ export class NoteStore {
 
   private readonly allNotes = signal<Note[]>(loadNotes());
 
-  /** Notes ordered by most recently edited. */
-  readonly notes = computed(() => [...this.allNotes()].sort((a, b) => b.updatedAt - a.updatedAt));
+  /** Active notes ordered by most recently edited. */
+  readonly notes = computed(() =>
+    this.allNotes()
+      .filter((note) => note.deletedAt === null)
+      .sort((a, b) => b.updatedAt - a.updatedAt),
+  );
+
+  /** Notes waiting in the trash, most recently deleted first. */
+  readonly trashedNotes = computed(() =>
+    this.allNotes()
+      .filter((note) => note.deletedAt !== null)
+      .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
+  );
 
   /**
    * Top-level notes with their nested children, depth-first and each level
@@ -70,15 +99,22 @@ export class NoteStore {
     return this.notes().filter((note) => matchesQuery(note, query));
   }
 
-  readonly total = computed(() => this.allNotes().length);
+  readonly total = computed(() => this.notes().length);
 
   private readonly selected = signal<string | null>(loadSelection(this.notes()));
   readonly selectedId = this.selected.asReadonly();
   readonly selectedNote = computed(
-    () => this.allNotes().find((note) => note.id === this.selected()) ?? null,
+    () => this.notes().find((note) => note.id === this.selected()) ?? null,
   );
 
   readonly storageError = signal<string | null>(null);
+
+  private readonly undoEntries = signal<HistoryEntry[]>([]);
+  private readonly redoEntries = signal<HistoryEntry[]>([]);
+  readonly canUndo = computed(() => this.undoEntries().length > 0);
+  readonly canRedo = computed(() => this.redoEntries().length > 0);
+  readonly undoLabel = computed(() => this.undoEntries().at(-1)?.label ?? '');
+  readonly redoLabel = computed(() => this.redoEntries().at(-1)?.label ?? '');
 
   /** Set after creating a note so the editor can focus its title. */
   readonly pendingTitleFocus = signal<string | null>(null);
@@ -118,6 +154,7 @@ export class NoteStore {
     const note = createNote();
     this.allNotes.update((notes) => [note, ...notes]);
     this.sync.markDirty(note.id);
+    this.recordHistory('create', 'Create note', [{ id: note.id, before: null, after: note }]);
     this.query.set('');
     this.select(note.id);
     this.pendingTitleFocus.set(note.id);
@@ -133,6 +170,7 @@ export class NoteStore {
     const note = createNote(parentExists ? parentId : null);
     this.allNotes.update((notes) => [note, ...notes]);
     this.sync.markDirty(note.id);
+    this.recordHistory('create', 'Create note', [{ id: note.id, before: null, after: note }]);
     this.query.set('');
     this.select(note.id);
     this.pendingTitleFocus.set(note.id);
@@ -233,9 +271,31 @@ export class NoteStore {
   }
 
   select(id: string | null): void {
-    if (id === null || this.allNotes().some((note) => note.id === id)) {
+    if (id === null || this.notes().some((note) => note.id === id)) {
       this.selected.set(id);
     }
+  }
+
+  /** Reverts the last note-level action (edits, creates, deletes, restores). */
+  undo(): void {
+    const entries = this.undoEntries();
+    const entry = entries.at(-1);
+    if (!entry) return;
+
+    this.undoEntries.set(entries.slice(0, -1));
+    this.redoEntries.update((redo) => [...redo, entry]);
+    this.applyHistory(entry, 'undo');
+  }
+
+  /** Re-applies the last undone action. */
+  redo(): void {
+    const entries = this.redoEntries();
+    const entry = entries.at(-1);
+    if (!entry) return;
+
+    this.redoEntries.set(entries.slice(0, -1));
+    this.undoEntries.update((undo) => [...undo, entry]);
+    this.applyHistory(entry, 'redo');
   }
 
   clearTitleFocus(): void {
@@ -324,6 +384,14 @@ export class NoteStore {
 
     this.sync.markDirty(noteId);
     this.sync.markDirty(child.id);
+    this.recordHistory('create', 'Add sub-note', [
+      { id: child.id, before: null, after: child },
+      {
+        id: noteId,
+        before: parent,
+        after: { ...parent, blocks: [...parent.blocks, block], updatedAt: now },
+      },
+    ]);
 
     return block;
   }
@@ -346,19 +414,24 @@ export class NoteStore {
 
     const block = { ...createBlock('subnote', { noteId: child.id }), id: existing.id };
     const now = Date.now();
+    const updatedParent = {
+      ...parent,
+      blocks: parent.blocks.map((item) => (item.id === blockId ? block : item)),
+      updatedAt: now,
+    };
 
     this.allNotes.update((notes) => [
-      {
-        ...parent,
-        blocks: parent.blocks.map((item) => (item.id === blockId ? block : item)),
-        updatedAt: now,
-      },
+      updatedParent,
       child,
       ...notes.filter((note) => note.id !== noteId),
     ]);
 
     this.sync.markDirty(noteId);
     this.sync.markDirty(child.id);
+    this.recordHistory('create', 'Add sub-note', [
+      { id: child.id, before: null, after: child },
+      { id: noteId, before: parent, after: updatedParent },
+    ]);
 
     return block;
   }
@@ -620,38 +693,106 @@ export class NoteStore {
   }
 
   /**
-   * Deletes a note. Its direct children move up to the deleted note's parent
-   * instead of being removed with it, and any inline sub-note blocks that point
-   * at the deleted note are removed so no dangling inline editors remain.
+   * Moves a note to the trash instead of deleting it right away. Its children
+   * stay attached, so restoring the note brings the whole branch back.
    */
   deleteNote(noteId: string): void {
-    const before = new Map(this.allNotes().map((note) => [note.id, note]));
-    const deleted = before.get(noteId) ?? null;
-    const parentId = deleted?.parentId ?? null;
+    const note = this.allNotes().find((item) => item.id === noteId);
+    if (!note || note.deletedAt !== null) return;
+
+    const now = Math.max(Date.now(), note.updatedAt + 1);
+    const next = { ...note, deletedAt: now, updatedAt: now };
+    this.allNotes.update((notes) => notes.map((item) => (item.id === noteId ? next : item)));
+    this.sync.markDirty(noteId);
+    this.recordHistory('delete', 'Move to trash', [{ id: noteId, before: note, after: next }]);
+
+    if (this.selected() === noteId) {
+      this.selected.set(this.notes()[0]?.id ?? null);
+    }
+  }
+
+  /** Brings a note back from the trash. */
+  restoreNote(noteId: string): void {
+    const note = this.allNotes().find((item) => item.id === noteId);
+    if (!note || note.deletedAt === null) return;
+
+    const next = {
+      ...note,
+      deletedAt: null,
+      updatedAt: Math.max(Date.now(), note.updatedAt + 1),
+    };
+    this.allNotes.update((notes) => notes.map((item) => (item.id === noteId ? next : item)));
+    this.sync.markDirty(noteId);
+    this.recordHistory('restore', 'Restore note', [{ id: noteId, before: note, after: next }]);
+    this.select(noteId);
+  }
+
+  /**
+   * Deletes a note for good, removing any inline sub-note blocks that point at
+   * it. Undo keeps a local copy until the next action clears the history.
+   */
+  purgeNote(noteId: string): void {
+    const note = this.allNotes().find((item) => item.id === noteId);
+    if (!note) return;
+
+    const changes: NoteChange[] = [{ id: noteId, before: note, after: null }];
     const remaining = this.allNotes()
-      .filter((note) => note.id !== noteId)
-      .map((note) => {
-        const next = note.parentId === noteId ? { ...note, parentId } : note;
-        const blocks = next.blocks.filter(
+      .filter((item) => item.id !== noteId)
+      .map((item) => {
+        const blocks = item.blocks.filter(
           (block) => !(block.type === 'subnote' && block.noteId === noteId),
         );
-        return blocks.length === next.blocks.length ? next : { ...next, blocks };
+        if (blocks.length === item.blocks.length) return item;
+        const after = { ...item, blocks };
+        changes.push({ id: item.id, before: item, after });
+        return after;
       });
     this.allNotes.set(remaining);
 
-    // Reparented children and notes that lost an inline sub-note block are
-    // changes of their own and must reach the server too.
-    for (const note of remaining) {
-      const previous = before.get(note.id);
-      if (previous && (previous.parentId !== note.parentId || previous.blocks !== note.blocks)) {
-        this.sync.markDirty(note.id);
-      }
-    }
     this.sync.markDeleted(noteId);
+    for (const change of changes) {
+      if (change.id !== noteId && change.after) this.sync.markDirty(change.id);
+    }
+    this.recordHistory('purge', 'Delete permanently', changes);
 
     if (this.selected() === noteId) {
-      const next = [...remaining].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-      this.selected.set(next?.id ?? null);
+      this.selected.set(this.notes()[0]?.id ?? null);
+    }
+  }
+
+  /** Permanently deletes every note in the trash in a single undoable step. */
+  emptyTrash(): void {
+    const trashed = this.trashedNotes();
+    if (trashed.length === 0) return;
+
+    const ids = new Set(trashed.map((note) => note.id));
+    const changes: NoteChange[] = trashed.map((note) => ({
+      id: note.id,
+      before: note,
+      after: null,
+    }));
+
+    const remaining = this.allNotes()
+      .filter((note) => !ids.has(note.id))
+      .map((note) => {
+        const blocks = note.blocks.filter(
+          (block) => !(block.type === 'subnote' && block.noteId && ids.has(block.noteId)),
+        );
+        if (blocks.length === note.blocks.length) return note;
+        const after = { ...note, blocks };
+        changes.push({ id: note.id, before: note, after });
+        return after;
+      });
+    this.allNotes.set(remaining);
+
+    for (const id of ids) this.sync.markDeleted(id);
+    for (const change of changes) {
+      if (!ids.has(change.id) && change.after) this.sync.markDirty(change.id);
+    }
+    this.recordHistory('purge', 'Empty trash', changes);
+
+    if (this.selected() !== null && !this.notes().some((note) => note.id === this.selected())) {
+      this.selected.set(this.notes()[0]?.id ?? null);
     }
   }
 
@@ -859,23 +1000,93 @@ export class NoteStore {
     return this.storageError() === null;
   }
 
-  private mutate(noteId: string, update: (note: Note) => Note): void {
+  private mutate(noteId: string, update: (note: Note) => Note, label = 'Edit note'): void {
     const now = Date.now();
-    let changed = false;
+    let change: NoteChange | null = null;
 
     this.allNotes.update((notes) =>
       notes.map((note) => {
         if (note.id !== noteId) return note;
         const next = update(note);
         if (next === note) return note;
-        changed = true;
         // Two edits in the same millisecond still need distinct timestamps so
         // the pull comparison can tell which copy is newer.
-        return { ...next, updatedAt: Math.max(now, note.updatedAt + 1) };
+        const after = { ...next, updatedAt: Math.max(now, note.updatedAt + 1) };
+        change = { id: noteId, before: note, after };
+        return after;
       }),
     );
 
-    if (changed) this.sync.markDirty(noteId);
+    if (change) {
+      this.sync.markDirty(noteId);
+      this.recordHistory('edit', label, [change]);
+    }
+  }
+
+  /**
+   * Stores an undoable action. Rapid edits to the same note coalesce into one
+   * entry so typing a sentence undoes as a single step.
+   */
+  private recordHistory(kind: HistoryKind, label: string, changes: NoteChange[]): void {
+    const filtered = changes.filter((change) => change.before !== change.after);
+    if (filtered.length === 0) return;
+
+    const now = Date.now();
+    const last = this.undoEntries().at(-1);
+    const sameTargets =
+      last !== undefined &&
+      last.kind === 'edit' &&
+      kind === 'edit' &&
+      last.changes.length === filtered.length &&
+      last.changes.every((change, index) => change.id === filtered[index].id);
+
+    if (last && sameTargets && now - last.at <= HISTORY_COALESCE_MS) {
+      const merged: HistoryEntry = {
+        ...last,
+        changes: last.changes.map((change, index) => ({
+          ...change,
+          after: filtered[index].after,
+        })),
+        at: now,
+      };
+      this.undoEntries.update((entries) => [...entries.slice(0, -1), merged]);
+    } else {
+      const entry: HistoryEntry = { changes: filtered, kind, label, at: now };
+      this.undoEntries.update((entries) => [...entries, entry].slice(-HISTORY_LIMIT));
+    }
+
+    // Any new action invalidates the redo branch.
+    this.redoEntries.set([]);
+  }
+
+  /** Replays one history entry forwards or backwards and persists the result. */
+  private applyHistory(entry: HistoryEntry, direction: 'undo' | 'redo'): void {
+    const targets = new Map<string, Note | null>();
+    for (const change of entry.changes) {
+      targets.set(change.id, direction === 'undo' ? change.before : change.after);
+    }
+
+    this.allNotes.update((notes) => {
+      const next = new Map(notes.map((note) => [note.id, note]));
+      for (const [id, target] of targets) {
+        if (target === null) next.delete(id);
+        else next.set(id, target);
+      }
+      return [...next.values()];
+    });
+
+    for (const [id, target] of targets) {
+      // `markDirty` also moves an id back out of the delete queue, so undoing a
+      // purge resurrects the note locally before the next sync.
+      if (target === null) this.sync.markDeleted(id);
+      else this.sync.markDirty(id);
+    }
+
+    this.flush();
+
+    if (this.selected() !== null && !this.notes().some((note) => note.id === this.selected())) {
+      this.selected.set(this.notes()[0]?.id ?? null);
+    }
   }
 
   private flush(): void {
@@ -1030,6 +1241,8 @@ function normalizeNote(value: unknown): Note | null {
     blocks: blocksRaw.map(normalizeBlock).filter((block): block is NoteBlock => block !== null),
     createdAt,
     updatedAt: numberOr(value['updatedAt'], createdAt),
+    deletedAt:
+      typeof value['deletedAt'] === 'number' && value['deletedAt'] > 0 ? value['deletedAt'] : null,
   };
 }
 

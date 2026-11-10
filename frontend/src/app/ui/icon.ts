@@ -26,6 +26,8 @@ export type IconName =
   | 'chevron-right'
   | 'chevron-down'
   | 'corner-down-right'
+  | 'undo'
+  | 'redo'
   | 'logo'
   | 'panel-left-close'
   | 'panel-left-open'
@@ -124,6 +126,14 @@ export type IconName =
         @case ('corner-down-right') {
           <path d="M5 5v7a3 3 0 0 0 3 3h11" />
           <path d="m15 11 4 4-4 4" />
+        }
+        @case ('undo') {
+          <path d="M9 14 4 9l5-5" />
+          <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+        }
+        @case ('redo') {
+          <path d="m15 14 5-5-5-5" />
+          <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
         }
         @case ('menu') {
           <path d="M4 7h16M4 12h16M4 17h16" />

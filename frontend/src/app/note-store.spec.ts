@@ -572,7 +572,7 @@ describe('NoteStore', () => {
     expect(store.notes()[0].blocks.map((item) => item.id)).toEqual(['b_2', 'b_1']);
   });
 
-  it('deletes a note, reparents children, and removes dangling sub-note blocks', () => {
+  it('moves a note to the trash, keeps its children attached, and restores it', () => {
     const deleted = note('n_deleted', {
       parentId: 'n_parent',
       updatedAt: 300,
@@ -591,12 +591,110 @@ describe('NoteStore', () => {
     store.deleteNote('n_deleted');
 
     expect(store.notes().some((item) => item.id === 'n_deleted')).toBe(false);
-    expect(store.notes().find((item) => item.id === 'n_child')?.parentId).toBe('n_parent');
+    expect(store.trashedNotes().map((item) => item.id)).toEqual(['n_deleted']);
+    // Children stay attached so restoring the branch is lossless.
+    expect(store.notes().find((item) => item.id === 'n_child')?.parentId).toBe('n_deleted');
+    expect(store.notes().find((item) => item.id === 'n_holder')?.blocks).toHaveLength(1);
+    expect(sync.markDirty).toHaveBeenCalledWith('n_deleted');
+    expect(sync.markDeleted).not.toHaveBeenCalled();
+    expect(store.selectedId()).toBe('n_child');
+
+    store.restoreNote('n_deleted');
+
+    expect(store.notes().some((item) => item.id === 'n_deleted')).toBe(true);
+    expect(store.trashedNotes()).toHaveLength(0);
+    expect(store.selectedId()).toBe('n_deleted');
+  });
+
+  it('purges a trashed note and removes dangling sub-note blocks', () => {
+    const deleted = note('n_deleted', { updatedAt: 300 });
+    const holder = note('n_holder', {
+      updatedAt: 100,
+      blocks: [block('b_sub', { type: 'subnote', noteId: 'n_deleted' })],
+    });
+    const { store, sync } = setup([deleted, holder]);
+
+    store.deleteNote('n_deleted');
+    store.purgeNote('n_deleted');
+
+    expect(store.trashedNotes()).toHaveLength(0);
+    expect(store.notes().some((item) => item.id === 'n_deleted')).toBe(false);
     expect(store.notes().find((item) => item.id === 'n_holder')?.blocks).toEqual([]);
     expect(sync.markDeleted).toHaveBeenCalledWith('n_deleted');
-    expect(sync.markDirty).toHaveBeenCalledWith('n_child');
     expect(sync.markDirty).toHaveBeenCalledWith('n_holder');
-    expect(store.selectedId()).toBe('n_child');
+  });
+
+  it('empties the trash in one step', () => {
+    const { store, sync } = setup([note('n_a'), note('n_b'), note('n_c')]);
+
+    store.deleteNote('n_a');
+    store.deleteNote('n_b');
+    expect(store.trashedNotes()).toHaveLength(2);
+
+    store.emptyTrash();
+
+    expect(store.trashedNotes()).toHaveLength(0);
+    expect(store.total()).toBe(1);
+    expect(store.notes()[0].id).toBe('n_c');
+    expect(sync.markDeleted).toHaveBeenCalledWith('n_a');
+    expect(sync.markDeleted).toHaveBeenCalledWith('n_b');
+  });
+
+  it('undoes and redoes edits, deletes, and restores', () => {
+    const { store } = setup([note('n_a', { title: 'A', updatedAt: 100 })]);
+
+    store.setTitle('n_a', 'B');
+    expect(store.canUndo()).toBe(true);
+    expect(store.undoLabel()).toBe('Edit note');
+
+    store.undo();
+    expect(store.notes()[0].title).toBe('A');
+    expect(store.canRedo()).toBe(true);
+    expect(store.redoLabel()).toBe('Edit note');
+
+    store.redo();
+    expect(store.notes()[0].title).toBe('B');
+
+    store.deleteNote('n_a');
+    expect(store.trashedNotes()).toHaveLength(1);
+
+    store.undo();
+    expect(store.notes()[0].title).toBe('B');
+    expect(store.trashedNotes()).toHaveLength(0);
+
+    store.redo();
+    expect(store.trashedNotes()).toHaveLength(1);
+  });
+
+  it('coalesces rapid edits into a single undo step', () => {
+    vi.useFakeTimers();
+    const { store } = setup([note('n_a', { title: 'A' })]);
+
+    store.setTitle('n_a', 'B');
+    store.setTitle('n_a', 'C');
+    store.setTitle('n_a', 'D');
+
+    store.undo();
+
+    expect(store.notes()[0].title).toBe('A');
+    expect(store.canUndo()).toBe(false);
+    expect(store.redoLabel()).toBe('Edit note');
+  });
+
+  it('undoes a purge by bringing the note back to the trash', () => {
+    const { store, sync } = setup([note('n_a')]);
+
+    store.deleteNote('n_a');
+    store.purgeNote('n_a');
+    expect(store.trashedNotes()).toHaveLength(0);
+
+    store.undo();
+    expect(store.trashedNotes().map((item) => item.id)).toEqual(['n_a']);
+    expect(store.notes()).toHaveLength(0);
+    expect(sync.markDirty).toHaveBeenCalledWith('n_a');
+
+    store.undo();
+    expect(store.notes().map((item) => item.id)).toEqual(['n_a']);
   });
 
   it('persists notes and selection after the debounce', () => {
