@@ -54,6 +54,7 @@ describe('createBlock', () => {
 describe('isImageIcon', () => {
   it('recognises data URLs, links, and blob sources', () => {
     expect(isImageIcon('data:image/png;base64,abc')).toBe(true);
+    expect(isImageIcon('asset:abc123')).toBe(true);
     expect(isImageIcon('https://example.com/icon.png')).toBe(true);
     expect(isImageIcon('http://example.com/icon.png')).toBe(true);
     expect(isImageIcon('blob:https://example.com/abc')).toBe(true);
@@ -331,11 +332,7 @@ describe('metadata helpers', () => {
   });
 
   it('parses unique, trimmed select options', () => {
-    expect(parseMetaOptions(' Draft, Review ,, Done, Draft ')).toEqual([
-      'Draft',
-      'Review',
-      'Done',
-    ]);
+    expect(parseMetaOptions(' Draft, Review ,, Done, Draft ')).toEqual(['Draft', 'Review', 'Done']);
     expect(parseMetaOptions('')).toEqual([]);
   });
 });

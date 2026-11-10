@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { Note, isImageIcon } from '../models';
 import { NoteStore } from '../note-store';
+import { AssetSrc } from '../ui/asset-src';
 import { Icon } from '../ui/icon';
 
 export type PaletteCommand = 'new-note' | 'toggle-notes' | 'toggle-outline';
@@ -36,7 +37,7 @@ const MAX_NOTES = 8;
  */
 @Component({
   selector: 'app-command-palette',
-  imports: [Icon],
+  imports: [Icon, AssetSrc],
   templateUrl: './command-palette.html',
   styleUrl: './command-palette.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -59,9 +60,7 @@ export class CommandPalette {
     if (!query) return ACTIONS;
     return ACTIONS.filter((action) => action.label.toLowerCase().includes(query));
   });
-  protected readonly notes = computed(() =>
-    this.store.search(this.query()).slice(0, MAX_NOTES),
-  );
+  protected readonly notes = computed(() => this.store.search(this.query()).slice(0, MAX_NOTES));
 
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 

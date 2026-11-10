@@ -108,7 +108,7 @@
               @if (row.note.icon) {
                 <span class="note-emoji" aria-hidden="true">
                   @if (isImageIcon(row.note.icon)) {
-                    <img class="note-emoji-image" [src]="row.note.icon" alt="" />
+                    <img class="note-emoji-image" [appAssetSrc]="row.note.icon" alt="" />
                   } @else {
                     {{ row.note.icon }}
                   }

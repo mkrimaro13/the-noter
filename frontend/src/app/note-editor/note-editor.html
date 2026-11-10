@@ -14,7 +14,7 @@
       (drop)="onCoverDrop($event)"
     >
       <img
-        [src]="note().cover"
+        [appAssetSrc]="note().cover"
         alt=""
         [style.object-position]="coverObjectPosition()"
         (pointerdown)="startCoverDrag($event)"
@@ -180,7 +180,7 @@
             title="Change icon"
           >
             @if (isImageIcon(note().icon)) {
-              <img class="note-icon-image" [src]="note().icon" alt="" />
+              <img class="note-icon-image" [appAssetSrc]="note().icon" alt="" />
             } @else {
               {{ note().icon }}
             }
@@ -532,7 +532,7 @@
             <button class="subnote-card" type="button" (click)="openNote(child)">
               <span class="subnote-mark" aria-hidden="true">
                 @if (isImageIcon(child.icon)) {
-                  <img class="subnote-mark-image" [src]="child.icon" alt="" />
+                  <img class="subnote-mark-image" [appAssetSrc]="child.icon" alt="" />
                 } @else {
                   {{ child.icon || '↳' }}
                 }

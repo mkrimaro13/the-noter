@@ -96,7 +96,7 @@ describe('ImageColumn', () => {
     expect(changed).toHaveBeenCalledWith({ src: '', caption: '' });
   });
 
-  it('accepts an image URL on Enter', () => {
+  it('accepts an image URL on Enter', async () => {
     const fixture = setup(column({ type: 'image' }));
     const changed = vi.fn();
     fixture.componentInstance.changed.subscribe(changed);
@@ -105,7 +105,9 @@ describe('ImageColumn', () => {
     input.value = 'https://example.com/a.png';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
 
-    expect(changed).toHaveBeenCalledWith({ src: 'https://example.com/a.png' });
+    await vi.waitFor(() =>
+      expect(changed).toHaveBeenCalledWith({ src: 'https://example.com/a.png' }),
+    );
     expect(input.value).toBe('');
   });
 
@@ -186,7 +188,7 @@ describe('ImageColumn', () => {
 
     await vi.waitFor(() =>
       expect(changed).toHaveBeenCalledWith(
-        expect.objectContaining({ src: expect.stringMatching(/^data:image\/png/) }),
+        expect.objectContaining({ src: expect.stringMatching(/^asset:/) }),
       ),
     );
     expect(event.defaultPrevented).toBe(true);

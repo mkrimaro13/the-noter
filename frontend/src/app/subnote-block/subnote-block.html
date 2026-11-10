@@ -23,7 +23,7 @@
       <div class="subnote-head">
         <span class="subnote-mark" aria-hidden="true">
           @if (isImageIcon(child.icon)) {
-            <img class="subnote-mark-image" [src]="child.icon" alt="" />
+            <img class="subnote-mark-image" [appAssetSrc]="child.icon" alt="" />
           } @else {
             {{ child.icon || '↳' }}
           }

@@ -85,10 +85,10 @@ endurecimiento para producción.
 
 #### P0.1 — Sacar las imágenes del JSON y de `localStorage`
 
-- [ ] Subir imágenes como attachments de CouchDB, idealmente content-addressed (`asset:<hash>`).
-- [ ] Cache local de blobs en IndexedDB para render offline.
-- [ ] Evitar base64 duplicado y liberar la cuota de ~5 MB.
-- [ ] **Done when:** una nota con varias fotos no agota `localStorage` y las imágenes siguen
+- [x] Subir imágenes como attachments de CouchDB, idealmente content-addressed (`asset:<hash>`).
+- [x] Cache local de blobs en IndexedDB para render offline.
+- [x] Evitar base64 duplicado y liberar la cuota de ~5 MB.
+- [x] **Done when:** una nota con varias fotos no agota `localStorage` y las imágenes siguen
       visibles offline.
 
 #### P0.2 — Migrar el store local a IndexedDB
@@ -287,7 +287,7 @@ endurecimiento para producción.
 | 6 | Mover/reparentar notas y persistir árbol | ✅ Completada | `feat(notes): etapa 6 - mover notas y persistir arbol` |
 | 7 | Metadatos tipados | ✅ Completada | `feat(metadata): etapa 7 - metadatos tipados` |
 | 8 | Búsqueda de iconos y cover por URL | ✅ Completada | `feat(icons): etapa 8 - busqueda de iconos y cover por URL` |
-| 9 | Almacenamiento de imágenes como attachments + IndexedDB | ⏳ Pendiente | — |
+| 9 | Almacenamiento de imágenes como attachments + IndexedDB | ✅ Completada | `feat(assets): etapa 9 - imagenes como attachments e IndexedDB` |
 | 10 | Papelera, undo/redo y export Markdown/PDF | ⏳ Pendiente | — |
 | 11 | Endurecimiento de sync (compactación, migraciones, conflictos) | ⏳ Pendiente | — |
 | 12 | Búsqueda con resaltado, filtros y favoritos | ⏳ Pendiente | — |
@@ -295,6 +295,6 @@ endurecimiento para producción.
 
 ### Próxima etapa
 
-**Etapa 9 — Imágenes como attachments + IndexedDB.** Sacar las imágenes del JSON y de
-`localStorage`, subirlas como attachments content-addressed (`asset:<hash>`) y cachear los blobs en
-IndexedDB para que sigan visibles offline.
+**Etapa 10 — Papelera, undo/redo y export Markdown/PDF.** Añadir una papelera con restauración,
+historial de deshacer/rehacer por nota o bloque, y exportación a Markdown/PDF/HTML, de modo que un
+borrado accidental o una nota corrupta se pueda recuperar sin tocar CouchDB.

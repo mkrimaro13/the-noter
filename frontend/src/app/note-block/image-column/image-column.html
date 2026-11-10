@@ -75,7 +75,7 @@
         </div>
       } @else {
         <img
-          [src]="column().src"
+          [appAssetSrc]="column().src"
           [alt]="column().caption || 'Note image'"
           (error)="onImageError()"
         />

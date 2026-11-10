@@ -88,9 +88,7 @@ describe('NoteEditor', () => {
   it('renders the note title, metadata, blocks, and word count', () => {
     const seeded = note('n_note', {
       title: 'My note',
-      metadata: [
-        { id: 'm_1', key: 'status', value: 'draft', type: 'text', options: [] },
-      ],
+      metadata: [{ id: 'm_1', key: 'status', value: 'draft', type: 'text', options: [] }],
       blocks: [
         createBlock('text', { columns: ['one two'], columnCount: 1 }),
         createBlock('heading', { text: 'three', level: 2 }),
@@ -312,13 +310,15 @@ describe('NoteEditor', () => {
     picker.dispatchEvent(new Event('change'));
 
     await vi.waitFor(() => {
-      expect(store.notes().find((item) => item.id === 'n_note')!.icon).toMatch(/^data:image\/png/);
+      expect(store.notes().find((item) => item.id === 'n_note')!.icon).toMatch(/^asset:/);
     });
 
     refresh();
-    expect(element.querySelector<HTMLImageElement>('.note-icon-image')?.src).toMatch(
-      /^data:image\/png/,
-    );
+    await vi.waitFor(() => {
+      expect(element.querySelector<HTMLImageElement>('.note-icon-image')?.src).toMatch(
+        /^(data:image\/png|blob:)/,
+      );
+    });
   });
 
   it('uses an image link as an icon', async () => {
@@ -364,9 +364,9 @@ describe('NoteEditor', () => {
     search.value = '';
     search.dispatchEvent(inputEvent());
     fixture.detectChanges();
-    const media = Array.from(
-      element.querySelectorAll<HTMLButtonElement>('.icon-category'),
-    ).find((button) => button.textContent?.trim() === 'Media')!;
+    const media = Array.from(element.querySelectorAll<HTMLButtonElement>('.icon-category')).find(
+      (button) => button.textContent?.trim() === 'Media',
+    )!;
     media.click();
     fixture.detectChanges();
 
@@ -562,7 +562,7 @@ describe('NoteEditor', () => {
       const blocks = store.notes().find((item) => item.id === 'n_note')!.blocks;
       expect(blocks).toHaveLength(1);
       expect(blocks[0].type).toBe('image');
-      expect(blocks[0].src.startsWith('data:image/png')).toBe(true);
+      expect(blocks[0].src.startsWith('asset:')).toBe(true);
     });
     expect(paste.defaultPrevented).toBe(true);
   });
@@ -712,7 +712,7 @@ describe('NoteEditor', () => {
 
     await vi.waitFor(() => {
       refresh();
-      expect(store.notes().find((item) => item.id === 'n_note')!.cover).toMatch(/^data:image\/png/);
+      expect(store.notes().find((item) => item.id === 'n_note')!.cover).toMatch(/^asset:/);
     });
     expect(drop.defaultPrevented).toBe(true);
   });
@@ -837,9 +837,7 @@ describe('NoteEditor', () => {
   it('commits metadata values on blur and leaves plain values alone', () => {
     const { fixture, store } = setup([
       note('n_note', {
-        metadata: [
-          { id: 'm_1', key: 'status', value: 'draft', type: 'text', options: [] },
-        ],
+        metadata: [{ id: 'm_1', key: 'status', value: 'draft', type: 'text', options: [] }],
       }),
     ]);
     const element = fixture.nativeElement as HTMLElement;
@@ -901,9 +899,9 @@ describe('NoteEditor', () => {
       const blocks = store.notes().find((item) => item.id === 'n_note')!.blocks;
       expect(blocks).toHaveLength(2);
       expect(blocks[0]).toMatchObject({ type: 'image', caption: '', mainColumnType: 'image' });
-      expect(blocks[0].src).toMatch(/^data:image\/png/);
+      expect(blocks[0].src).toMatch(/^asset:/);
       expect(blocks[1].type).toBe('image');
-      expect(blocks[1].src).toMatch(/^data:image\/png/);
+      expect(blocks[1].src).toMatch(/^asset:/);
     });
   });
 
@@ -930,7 +928,7 @@ describe('NoteEditor', () => {
         type: 'image',
         caption: '',
       });
-      expect(blocks[0].imageColumns[0].src).toMatch(/^data:image\/png/);
+      expect(blocks[0].imageColumns[0].src).toMatch(/^asset:/);
       expect(blocks).toHaveLength(2);
       expect(blocks[1].type).toBe('image');
     });

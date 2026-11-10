@@ -22,6 +22,7 @@ import {
   isImageIcon,
 } from '../models';
 import { NoteStore } from '../note-store';
+import { AssetSrc } from '../ui/asset-src';
 import { Focus } from '../ui/focus';
 import { Icon } from '../ui/icon';
 import { NoteBlock as NoteBlockEditor } from '../note-block/note-block';
@@ -39,6 +40,7 @@ import { NoteBlock as NoteBlockEditor } from '../note-block/note-block';
     CdkDragHandle,
     CdkDropList,
     NoteBlockEditor,
+    AssetSrc,
     forwardRef(() => SubnoteBlock),
   ],
   templateUrl: './subnote-block.html',

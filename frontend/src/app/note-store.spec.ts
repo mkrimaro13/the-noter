@@ -145,9 +145,7 @@ describe('NoteStore', () => {
   it('filters by title, metadata, and block content', () => {
     const byTitle = note('n_title', { title: 'Grocery list' });
     const byMeta = note('n_meta', {
-      metadata: [
-        { id: 'm_1', key: 'project', value: 'needle', type: 'text', options: [] },
-      ],
+      metadata: [{ id: 'm_1', key: 'project', value: 'needle', type: 'text', options: [] }],
     });
     const byText = note('n_text', {
       blocks: [block('b_1', { type: 'text', columns: ['a needle here'], columnCount: 1 })],
@@ -1080,9 +1078,7 @@ describe('NoteStore backups', () => {
 
   it('accepts a bare array and re-roots notes with missing parents', () => {
     const { store } = setup();
-    const backup = JSON.stringify([
-      note('n_child', { parentId: 'n_missing', updatedAt: 1 }),
-    ]);
+    const backup = JSON.stringify([note('n_child', { parentId: 'n_missing', updatedAt: 1 })]);
 
     const result = store.importBackup(backup);
 
@@ -1101,5 +1097,39 @@ describe('NoteStore backups', () => {
     expect(() => store.importBackup(JSON.stringify({ notes: [] }))).toThrow(
       'does not contain any valid notes',
     );
+  });
+
+  it('moves inline images into the asset store without changing timestamps', async () => {
+    const source = `data:image/png;base64,${btoa('hello')}`;
+    const seeded = note('n_a', {
+      updatedAt: 500,
+      icon: source,
+      cover: source,
+      blocks: [
+        { ...createBlock('image', { src: source }), id: 'b_image' },
+        {
+          ...createBlock('image', { columnCount: 2 }),
+          id: 'b_image_columns',
+          imageColumns: [{ ...createImageColumn(), src: source }],
+        },
+      ],
+    });
+    const { store, sync } = setup([seeded]);
+
+    expect(await store.migrateImages()).toBe(1);
+
+    const migrated = store.notes()[0];
+    expect(migrated.updatedAt).toBe(500);
+    expect(migrated.icon).toMatch(/^asset:/);
+    expect(migrated.cover).toMatch(/^asset:/);
+    expect(migrated.blocks[0].src).toMatch(/^asset:/);
+    expect(migrated.blocks[1].imageColumns[0].src).toMatch(/^asset:/);
+    // The same bytes are stored once and shared by every field.
+    expect(migrated.icon).toBe(migrated.cover);
+    expect(migrated.icon).toBe(migrated.blocks[0].src);
+    expect(sync.markDirty).toHaveBeenCalledWith('n_a');
+
+    expect(await store.migrateImages()).toBe(0);
+    expect(sync.markDirty).toHaveBeenCalledTimes(1);
   });
 });

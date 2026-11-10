@@ -1,5 +1,10 @@
 @if (open()) {
-  <button class="palette-scrim" type="button" aria-label="Close command palette" (click)="close()"></button>
+  <button
+    class="palette-scrim"
+    type="button"
+    aria-label="Close command palette"
+    (click)="close()"
+  ></button>
 
   <div class="palette" role="dialog" aria-modal="true" aria-label="Command palette">
     <div class="palette-search">
@@ -56,7 +61,7 @@
           <span class="palette-icon">
             @if (note.icon) {
               @if (isImageIcon(note.icon)) {
-                <img class="palette-image" [src]="note.icon" alt="" />
+                <img class="palette-image" [appAssetSrc]="note.icon" alt="" />
               } @else {
                 <span class="palette-emoji">{{ note.icon }}</span>
               }

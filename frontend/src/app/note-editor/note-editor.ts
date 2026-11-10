@@ -10,6 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { AssetStore } from '../assets';
 import { blockCountLabel, relativeTime, resolveTimeFunctions, wordCount } from '../format';
 import { imageFileToDataUrl, loadImage } from '../image';
 import { FenceShortcut, MarkdownBlockShortcut } from '../markdown';
@@ -32,6 +33,7 @@ import {
 } from '../models';
 import { NoteStore } from '../note-store';
 import { SubnoteBlock } from '../subnote-block/subnote-block';
+import { AssetSrc } from '../ui/asset-src';
 import { Focus } from '../ui/focus';
 import { Icon } from '../ui/icon';
 import { NoteBlock as NoteBlockEditor } from '../note-block/note-block';
@@ -103,7 +105,7 @@ const NOTE_ICONS: readonly NoteIconChoice[] = [
 
 @Component({
   selector: 'app-note-editor',
-  imports: [NoteBlockEditor, SubnoteBlock, Icon, Focus, CdkDropList],
+  imports: [NoteBlockEditor, SubnoteBlock, Icon, Focus, CdkDropList, AssetSrc],
   templateUrl: './note-editor.html',
   styleUrl: './note-editor.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -116,6 +118,7 @@ export class NoteEditor {
   readonly note = input.required<Note>();
 
   protected readonly store = inject(NoteStore);
+  private readonly assets = inject(AssetStore);
   protected readonly blockMenu = BLOCK_MENU;
   protected readonly menuOpen = signal(false);
   protected readonly iconMenuOpen = signal(false);
@@ -150,8 +153,7 @@ export class NoteEditor {
     return NOTE_ICONS.filter(
       (choice) =>
         (category === 'All' || choice.category === category) &&
-        (query.length === 0 ||
-          `${choice.name} ${choice.keywords}`.toLowerCase().includes(query)),
+        (query.length === 0 || `${choice.name} ${choice.keywords}`.toLowerCase().includes(query)),
     );
   });
   protected readonly recentChoices = computed(() => {
@@ -441,9 +443,9 @@ export class NoteEditor {
     }
 
     try {
-      const icon = await imageFileToDataUrl(file, 256);
-      await loadImage(icon);
-      this.chooseIcon(icon);
+      const dataUrl = await imageFileToDataUrl(file, 256);
+      await loadImage(dataUrl);
+      this.chooseIcon(await this.assets.prepare(dataUrl));
     } catch {
       this.iconError.set(ICON_FILE_ERROR);
     }
@@ -459,7 +461,7 @@ export class NoteEditor {
 
     try {
       await loadImage(source);
-      this.chooseIcon(source);
+      this.chooseIcon(await this.assets.prepare(source));
     } catch {
       this.iconError.set(ICON_IMAGE_ERROR);
     }
@@ -470,8 +472,8 @@ export class NoteEditor {
 
     this.coverError.set(null);
     try {
-      const cover = await imageFileToDataUrl(file, 2000);
-      this.store.setCover(this.note().id, cover);
+      const dataUrl = await imageFileToDataUrl(file, 2000);
+      this.store.setCover(this.note().id, await this.assets.prepare(dataUrl));
     } catch (error) {
       this.coverError.set(error instanceof Error ? error.message : 'Could not read that image.');
     }
@@ -487,7 +489,7 @@ export class NoteEditor {
 
     try {
       await loadImage(source);
-      this.store.setCover(this.note().id, source);
+      this.store.setCover(this.note().id, await this.assets.prepare(source));
       this.coverUrlOpen.set(false);
     } catch {
       this.coverError.set(COVER_IMAGE_ERROR);
@@ -663,7 +665,7 @@ export class NoteEditor {
     const sources: string[] = [];
     for (const file of files) {
       try {
-        sources.push(await imageFileToDataUrl(file));
+        sources.push(await this.assets.prepare(await imageFileToDataUrl(file)));
       } catch (error) {
         this.showPasteError(error instanceof Error ? error.message : 'Could not paste that image.');
       }

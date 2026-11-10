@@ -1,4 +1,5 @@
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
+import { AssetStore, isDataImage } from './assets';
 import { FenceShortcut, MarkdownBlockShortcut } from './markdown';
 import { SyncService, type RemoteApply } from './sync';
 import {
@@ -44,6 +45,7 @@ export interface ImportResult {
 export class NoteStore {
   private readonly destroyRef = inject(DestroyRef);
   private readonly sync = inject(SyncService);
+  private readonly assets = inject(AssetStore);
 
   private readonly allNotes = signal<Note[]>(loadNotes());
 
@@ -653,6 +655,84 @@ export class NoteStore {
     }
   }
 
+  /**
+   * Moves inline base64 images out of the note JSON and into the asset store.
+   * Timestamps are intentionally left alone so a migration never reorders the
+   * sidebar or looks like a user edit.
+   */
+  async migrateImages(): Promise<number> {
+    const snapshot = new Map(this.allNotes().map((note) => [note.id, note]));
+    const updates = new Map<string, Note>();
+
+    for (const note of snapshot.values()) {
+      let next = note;
+
+      if (isDataImage(note.icon)) {
+        next = { ...next, icon: await this.assets.putDataUrl(note.icon) };
+      }
+      if (isDataImage(note.cover)) {
+        next = { ...next, cover: await this.assets.putDataUrl(note.cover) };
+      }
+
+      let blocks = next.blocks;
+      let blocksChanged = false;
+
+      for (let index = 0; index < blocks.length; index += 1) {
+        const block = blocks[index];
+        let nextBlock = block;
+
+        if (isDataImage(block.src)) {
+          nextBlock = { ...nextBlock, src: await this.assets.putDataUrl(block.src) };
+        }
+
+        let columns = nextBlock.imageColumns;
+        let columnsChanged = false;
+        for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
+          const column = columns[columnIndex];
+          if (!isDataImage(column.src)) continue;
+          if (!columnsChanged) {
+            columns = [...columns];
+            columnsChanged = true;
+          }
+          columns[columnIndex] = {
+            ...column,
+            src: await this.assets.putDataUrl(column.src),
+          };
+        }
+
+        if (columnsChanged) nextBlock = { ...nextBlock, imageColumns: columns };
+        if (nextBlock !== block) {
+          if (!blocksChanged) {
+            blocks = [...blocks];
+            blocksChanged = true;
+          }
+          blocks[index] = nextBlock;
+        }
+      }
+
+      if (blocksChanged) next = { ...next, blocks };
+      if (next !== note) updates.set(note.id, next);
+    }
+
+    if (updates.size === 0) return 0;
+
+    // Hashing is asynchronous: if the user edited a note meanwhile, keep the
+    // new version and let a later pass migrate its images instead.
+    const applied: string[] = [];
+    this.allNotes.update((notes) =>
+      notes.map((note) => {
+        const next = updates.get(note.id);
+        if (!next || snapshot.get(note.id) !== note) return note;
+        applied.push(note.id);
+        return next;
+      }),
+    );
+
+    for (const id of applied) this.sync.markDirty(id);
+    this.flush();
+    return applied.length;
+  }
+
   /** Serializes the whole notebook into a portable JSON backup. */
   exportBackup(): string {
     return JSON.stringify(
@@ -721,6 +801,7 @@ export class NoteStore {
     for (const id of changed) this.sync.markDirty(id);
 
     this.flush();
+    void this.migrateImages();
 
     if (!this.allNotes().some((note) => note.id === this.selected())) {
       this.selected.set(this.notes()[0]?.id ?? null);
@@ -769,6 +850,7 @@ export class NoteStore {
     // Write remote changes and conflict copies before returning, so the sync
     // service can safely resolve server-side conflicts afterwards.
     this.flush();
+    void this.migrateImages();
 
     if (!this.allNotes().some((note) => note.id === this.selected())) {
       this.selected.set(this.notes()[0]?.id ?? null);

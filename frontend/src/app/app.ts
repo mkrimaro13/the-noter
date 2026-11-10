@@ -55,6 +55,10 @@ export class App {
   private readonly outlineButton = viewChild<ElementRef<HTMLButtonElement>>('outlineButton');
 
   constructor() {
+    // Old notes stored images as inline base64. Move them into IndexedDB once,
+    // in the background, so the JSON written to localStorage stays small.
+    void this.store.migrateImages();
+
     if (typeof window !== 'undefined') {
       const query = window.matchMedia(WIDE_LAYOUT);
       this.wideLayout.set(query.matches);

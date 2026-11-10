@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AssetStore } from './assets';
 import { Note, createNote } from './models';
 import { SyncHandlers, SyncService } from './sync';
 
@@ -33,6 +34,16 @@ function response(body: unknown, ok = true, status = 200) {
   };
 }
 
+function blobResponse(blob: Blob, ok = true, status = 200) {
+  return {
+    ok,
+    status,
+    json: async () => blob,
+    text: async () => '',
+    blob: async () => blob,
+  };
+}
+
 const config = {
   enabled: true,
   url: 'http://couch:5984/notes/',
@@ -53,6 +64,8 @@ function routeFetch(routes: {
   doc?: (url: string, init?: RequestInit) => unknown;
   config?: unknown;
   configOk?: boolean;
+  asset?: (url: string, init?: RequestInit) => unknown;
+  assetBlob?: (url: string) => Blob | null;
 }) {
   return vi.fn(async (url: string, init?: RequestInit) => {
     const href = String(url);
@@ -68,6 +81,13 @@ function routeFetch(routes: {
     }
     if (href.includes('/_changes')) {
       return response(routes.changes ? routes.changes() : { results: [], last_seq: 1 });
+    }
+    if (decodeURIComponent(href).includes('/asset:')) {
+      if (href.endsWith('/blob')) {
+        const blob = routes.assetBlob ? routes.assetBlob(href) : null;
+        return blob ? blobResponse(blob) : response('', false, 404);
+      }
+      return routes.asset ? routes.asset(href, init) : response({ ok: true });
     }
     if (href.includes('?revs=false') || href.includes('?rev=')) {
       const result = routes.doc ? routes.doc(href, init) : {};
@@ -86,6 +106,7 @@ function state(): {
   revs: Record<string, string>;
   dirty: string[];
   removed: string[];
+  assets: string[];
 } {
   return JSON.parse(localStorage.getItem(STATE_KEY) ?? '{}');
 }
@@ -169,6 +190,7 @@ describe('SyncService', () => {
       revs: { n_a: '1-a' },
       dirty: ['n_a', 'n_b', 'n_new'],
       removed: ['n_c'],
+      assets: [],
     });
   });
 
@@ -178,7 +200,7 @@ describe('SyncService', () => {
     const service = TestBed.inject(SyncService);
     service.markDirty('n_a');
 
-    expect(state()).toEqual({ since: null, revs: {}, dirty: ['n_a'], removed: [] });
+    expect(state()).toEqual({ since: null, revs: {}, dirty: ['n_a'], removed: [], assets: [] });
   });
 
   it('pushes dirty notes, pulls changes, and reports success', async () => {
@@ -270,6 +292,111 @@ describe('SyncService', () => {
       copies: [],
     });
     expect(state()).toMatchObject({ since: 9, revs: { n_remote: '1-r' } });
+  });
+
+  it('uploads referenced assets before the note document', async () => {
+    const assets = TestBed.inject(AssetStore);
+    const ref = await assets.putDataUrl(`data:image/png;base64,${btoa('hello')}`);
+    const handlers = handlersFor([note('n_1', { cover: ref })]);
+    const fetchMock = routeFetch({
+      bulk: () => [{ id: 'note:n_1', rev: '1-a', ok: true }],
+      changes: () => ({ results: [], last_seq: 7 }),
+      asset: () => response({ ok: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    const assetIndex = fetchMock.mock.calls.findIndex(
+      ([url, init]) =>
+        decodeURIComponent(String(url)).includes('/asset:') && init?.method === 'PUT',
+    );
+    const bulkIndex = fetchMock.mock.calls.findIndex(([url]) =>
+      String(url).endsWith('/_bulk_docs'),
+    );
+    expect(assetIndex).toBeGreaterThanOrEqual(0);
+    expect(assetIndex).toBeLessThan(bulkIndex);
+
+    const [assetUrl, assetInit] = fetchMock.mock.calls[assetIndex];
+    expect(String(assetUrl)).toBe(
+      `http://couch:5984/notes/${encodeURIComponent('asset:' + ref.slice('asset:'.length))}`,
+    );
+    expect(JSON.parse(String(assetInit?.body))).toMatchObject({
+      _id: 'asset:' + ref.slice('asset:'.length),
+      type: 'asset',
+      schema: 1,
+      _attachments: {
+        blob: { content_type: 'image/png', data: btoa('hello') },
+      },
+    });
+    expect(state().assets).toContain(ref);
+  });
+
+  it('treats an existing asset as already uploaded', async () => {
+    const assets = TestBed.inject(AssetStore);
+    const ref = await assets.putDataUrl(`data:image/png;base64,${btoa('hello')}`);
+    const handlers = handlersFor([note('n_1', { icon: ref })]);
+    const fetchMock = routeFetch({
+      bulk: () => [{ id: 'note:n_1', rev: '1-a', ok: true }],
+      changes: () => ({ results: [], last_seq: 7 }),
+      asset: () => response('conflict', false, 409),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+    expect(state().assets).toContain(ref);
+    expect(callsTo(fetchMock, '/_bulk_docs')).toHaveLength(1);
+  });
+
+  it('downloads assets referenced by pulled notes', async () => {
+    seedState({ since: 3 });
+    const hash = 'a'.repeat(64);
+    const ref = `asset:${hash}`;
+    const handlers = handlersFor([]);
+    const fetchMock = routeFetch({
+      changes: () => ({
+        results: [
+          {
+            id: 'note:n_remote',
+            changes: [{ rev: '1-r' }],
+            doc: {
+              _id: 'note:n_remote',
+              _rev: '1-r',
+              type: 'note',
+              schema: 1,
+              title: 'Remote note',
+              updatedAt: 100,
+              createdAt: 5,
+              blocks: [],
+              metadata: [],
+              icon: ref,
+            },
+          },
+        ],
+        last_seq: 9,
+      }),
+      assetBlob: () => new Blob(['image'], { type: 'image/png' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    const assets = TestBed.inject(AssetStore);
+    expect(await assets.has(ref)).toBe(true);
+    const blobCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/blob'));
+    expect(String(blobCall?.[0])).toBe(
+      `http://couch:5984/notes/${encodeURIComponent(`asset:${hash}`)}/blob`,
+    );
+    expect(state().assets).toContain(ref);
   });
 
   it('keeps a newer local note and queues it for upload', async () => {

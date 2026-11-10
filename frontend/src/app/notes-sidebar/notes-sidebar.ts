@@ -14,6 +14,7 @@ import { Note, NoteTreeItem, isImageIcon } from '../models';
 import { NoteStore } from '../note-store';
 import { SyncService } from '../sync';
 import { blockCountLabel, relativeTime } from '../format';
+import { AssetSrc } from '../ui/asset-src';
 import { Icon } from '../ui/icon';
 
 const COLLAPSED_KEY = 'the-noter.ui.collapsed.v1';
@@ -27,7 +28,7 @@ interface SidebarRow {
 
 @Component({
   selector: 'app-notes-sidebar',
-  imports: [Icon],
+  imports: [Icon, AssetSrc],
   templateUrl: './notes-sidebar.html',
   styleUrl: './notes-sidebar.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

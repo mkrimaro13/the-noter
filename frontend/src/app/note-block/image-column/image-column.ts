@@ -3,14 +3,17 @@ import {
   Component,
   ElementRef,
   effect,
+  inject,
   input,
   output,
   signal,
   viewChild,
 } from '@angular/core';
+import { AssetStore } from '../../assets';
 import { imageFileToDataUrl } from '../../image';
 import { hasInlineMarkup } from '../../markdown';
 import { ImageColumnPatch, ImageColumnType, VisibleImageColumn } from '../../models';
+import { AssetSrc } from '../../ui/asset-src';
 import { Autosize } from '../../ui/autosize';
 import { Focus } from '../../ui/focus';
 import { Icon } from '../../ui/icon';
@@ -18,7 +21,7 @@ import { MarkdownInline } from '../../ui/markdown-inline';
 
 @Component({
   selector: 'app-image-column',
-  imports: [Autosize, Focus, Icon, MarkdownInline],
+  imports: [Autosize, Focus, Icon, MarkdownInline, AssetSrc],
   templateUrl: './image-column.html',
   styleUrl: './image-column.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -41,6 +44,7 @@ export class ImageColumn {
   protected readonly dragOver = signal(false);
   protected readonly hasMarkup = hasInlineMarkup;
 
+  private readonly assets = inject(AssetStore);
   private readonly filePicker = viewChild<ElementRef<HTMLInputElement>>('filePicker');
 
   constructor() {
@@ -87,7 +91,7 @@ export class ImageColumn {
     void this.importImage(event.dataTransfer?.files?.[0] ?? null);
   }
 
-  protected onUrlKeydown(event: KeyboardEvent): void {
+  protected async onUrlKeydown(event: KeyboardEvent): Promise<void> {
     if (event.key !== 'Enter') return;
 
     const input = event.target as HTMLInputElement;
@@ -97,7 +101,7 @@ export class ImageColumn {
     event.preventDefault();
     this.imageError.set(null);
     this.imageFailed.set(false);
-    this.changed.emit({ src: url });
+    this.changed.emit({ src: await this.assets.prepare(url) });
     input.value = '';
   }
 
@@ -129,7 +133,7 @@ export class ImageColumn {
 
     this.imageError.set(null);
     try {
-      const src = await imageFileToDataUrl(file);
+      const src = await this.assets.prepare(await imageFileToDataUrl(file));
       this.imageFailed.set(false);
       this.changed.emit({ src });
     } catch (error) {

@@ -137,7 +137,7 @@ export interface Note {
 
 /** True when the note icon is an image source instead of an emoji or short text. */
 export function isImageIcon(icon: string): boolean {
-  return /^(data:image\/|https?:\/\/|blob:)/i.test(icon.trim());
+  return /^(data:image\/|https?:\/\/|blob:|asset:)/i.test(icon.trim());
 }
 
 /** One note in the nested sidebar tree. */

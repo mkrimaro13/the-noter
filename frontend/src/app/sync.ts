@@ -1,4 +1,5 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
+import { AssetStore, assetHash, blobToBase64, isAssetRef } from './assets';
 import { Note, uid } from './models';
 
 const CONFIG_URL = '/sync-config.json';
@@ -29,6 +30,8 @@ interface SyncState {
   dirty: string[];
   /** Notes deleted locally and waiting for a tombstone push. */
   removed: string[];
+  /** Asset refs already present on the server. */
+  assets: string[];
 }
 
 /** A note document as it travels between the store and CouchDB. */
@@ -81,6 +84,7 @@ class SyncError extends Error {
 @Injectable({ providedIn: 'root' })
 export class SyncService {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly assets = inject(AssetStore);
 
   /** Current sync state, rendered by the sidebar. */
   readonly status = signal<SyncStatus>('idle');
@@ -272,6 +276,12 @@ export class SyncService {
     this.state.removed = [...removed];
     if (docs.length === 0) return;
 
+    // The bytes have to exist on the server before a note can reference them.
+    // Uploads are content-addressed, so a `409` simply means someone else got
+    // there first.
+    const pushed = [...dirty].map((id) => notes.get(id));
+    await this.pushAssets(pushed.filter((note): note is Note => note !== undefined));
+
     const result = await this.request('POST', '/_bulk_docs', { docs });
     if (!Array.isArray(result)) throw new SyncError('Unexpected response from CouchDB.');
 
@@ -320,6 +330,81 @@ export class SyncService {
     if (copies.length > 0) {
       handlers.applyRemote({ notes: [], deletes: [], copies });
     }
+  }
+
+  /**
+   * Uploads every asset referenced by a note that is about to be pushed. A
+   * failure keeps the note dirty, so the next pass retries both together.
+   */
+  private async pushAssets(notes: Note[]): Promise<void> {
+    const refs = new Set<string>();
+    for (const note of notes) {
+      for (const ref of noteAssetRefs(note)) refs.add(ref);
+    }
+
+    for (const ref of refs) {
+      if (this.state.assets.includes(ref)) continue;
+
+      const blob = await this.assets.getBlob(ref);
+      // The bytes are missing on this device; uploading the note still makes
+      // sense because the ref may already exist elsewhere.
+      if (!blob) continue;
+
+      const docId = assetDocId(ref);
+      const data = await blobToBase64(blob);
+      const doc: Record<string, unknown> = {
+        _id: docId,
+        type: 'asset',
+        schema: 1,
+        _attachments: {
+          blob: { content_type: blob.type || 'application/octet-stream', data },
+        },
+      };
+
+      try {
+        await this.request('PUT', `/${encodeURIComponent(docId)}`, doc);
+      } catch (error) {
+        // Content-addressed ids are immutable: a conflict means the same bytes
+        // are already stored on the server.
+        if (!(error instanceof SyncHttpError && error.status === 409)) throw error;
+      }
+
+      this.rememberAsset(ref);
+    }
+  }
+
+  /** Downloads the bytes for asset refs found in freshly pulled notes. */
+  private async pullAssets(notes: RemoteNoteDoc[]): Promise<void> {
+    const refs = new Set<string>();
+    for (const note of notes) {
+      for (const ref of docAssetRefs(note.data)) refs.add(ref);
+    }
+
+    for (const ref of refs) {
+      if (await this.assets.has(ref)) {
+        this.rememberAsset(ref);
+        continue;
+      }
+
+      try {
+        const blob = await this.requestBlob(`/${encodeURIComponent(assetDocId(ref))}/blob`);
+        await this.assets.putBlobAt(ref, blob);
+        this.rememberAsset(ref);
+      } catch (error) {
+        // A missing asset is not fatal: the note still keeps its reference and
+        // a later sync can try again.
+        if (error instanceof SyncHttpError && error.status === 404) continue;
+        throw error;
+      }
+    }
+
+    this.saveState();
+  }
+
+  private rememberAsset(ref: string): void {
+    if (this.state.assets.includes(ref)) return;
+    this.state.assets.push(ref);
+    this.saveState();
   }
 
   private async pull(): Promise<void> {
@@ -423,6 +508,10 @@ export class SyncService {
       }
       this.saveState();
     }
+
+    // Notes are already in the store; the directive retries the image binding
+    // as soon as each blob lands in IndexedDB.
+    await this.pullAssets([...apply.notes, ...apply.copies]);
   }
 
   /**
@@ -505,45 +594,62 @@ export class SyncService {
   }
 
   private async request(method: string, path: string, body?: unknown): Promise<unknown> {
+    const response = await this.send(method, path, body, 'application/json');
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  /** Downloads a binary endpoint, used for CouchDB attachments. */
+  private async requestBlob(path: string): Promise<Blob> {
+    const response = await this.send('GET', path, undefined, '*/*');
+    return response.blob();
+  }
+
+  private async send(
+    method: string,
+    path: string,
+    body: unknown,
+    accept: string,
+  ): Promise<Response> {
     const config = this.config;
     if (!config?.enabled) throw new SyncError('Sync is not configured.');
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
+    let response: Response;
     try {
-      const response = await fetch(`${config.url}${path}`, {
+      response = await fetch(`${config.url}${path}`, {
         method,
         cache: 'no-store',
         signal: controller.signal,
         headers: {
-          accept: 'application/json',
+          accept,
           authorization: basicAuth(config.username ?? '', config.password ?? ''),
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
-
-      if (!response.ok) {
-        let detail = '';
-        try {
-          detail = (await response.text()).slice(0, 200);
-        } catch {
-          // The status code is enough when the body cannot be read.
-        }
-        throw new SyncHttpError(
-          response.status,
-          response.status === 401 || response.status === 403
-            ? 'Sync login failed. Check the app credentials in .env.'
-            : `CouchDB answered ${response.status}${detail ? `: ${detail}` : ''}`,
-        );
-      }
-
-      const text = await response.text();
-      return text ? JSON.parse(text) : null;
     } finally {
       clearTimeout(timeout);
     }
+
+    if (!response.ok) {
+      let detail = '';
+      try {
+        detail = (await response.text()).slice(0, 200);
+      } catch {
+        // The status code is enough when the body cannot be read.
+      }
+      throw new SyncHttpError(
+        response.status,
+        response.status === 401 || response.status === 403
+          ? 'Sync login failed. Check the app credentials in .env.'
+          : `CouchDB answered ${response.status}${detail ? `: ${detail}` : ''}`,
+      );
+    }
+
+    return response;
   }
 
   private schedule(delay: number): void {
@@ -599,7 +705,7 @@ function parseConfig(value: unknown): SyncConfig {
 }
 
 function loadState(): SyncState {
-  const empty: SyncState = { since: null, revs: {}, dirty: [], removed: [] };
+  const empty: SyncState = { since: null, revs: {}, dirty: [], removed: [], assets: [] };
 
   try {
     const raw = localStorage.getItem(STATE_KEY);
@@ -623,6 +729,7 @@ function loadState(): SyncState {
       revs,
       dirty: stringArray(parsed['dirty']),
       removed: stringArray(parsed['removed']),
+      assets: stringArray(parsed['assets']),
     };
   } catch {
     return empty;
@@ -635,6 +742,46 @@ function noteDocId(noteId: string): string {
 
 function noteIdFromDoc(docId: string): string | null {
   return docId.startsWith('note:') ? docId.slice('note:'.length) : null;
+}
+
+function assetDocId(ref: string): string {
+  return `asset:${assetHash(ref)}`;
+}
+
+/** Asset refs that a note points at, ignoring the text content. */
+function noteAssetRefs(note: Note): string[] {
+  const refs = new Set<string>();
+  addAssetRef(refs, note.icon);
+  addAssetRef(refs, note.cover);
+  for (const block of note.blocks) {
+    addAssetRef(refs, block.src);
+    for (const column of block.imageColumns) addAssetRef(refs, column.src);
+  }
+  return [...refs];
+}
+
+/** Asset refs inside a remote note document, before it reaches the store. */
+function docAssetRefs(data: Record<string, unknown>): string[] {
+  const refs = new Set<string>();
+  addAssetRef(refs, data['icon']);
+  addAssetRef(refs, data['cover']);
+
+  const blocks = Array.isArray(data['blocks']) ? data['blocks'] : [];
+  for (const block of blocks) {
+    if (!isRecord(block)) continue;
+    addAssetRef(refs, block['src']);
+
+    const columns = Array.isArray(block['imageColumns']) ? block['imageColumns'] : [];
+    for (const column of columns) {
+      if (isRecord(column)) addAssetRef(refs, column['src']);
+    }
+  }
+
+  return [...refs];
+}
+
+function addAssetRef(refs: Set<string>, value: unknown): void {
+  if (typeof value === 'string' && isAssetRef(value)) refs.add(value);
 }
 
 function noteDataFromDoc(doc: Record<string, unknown>, id: string): Record<string, unknown> {
