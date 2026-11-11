@@ -33,7 +33,9 @@ export type IconName =
   | 'panel-left-open'
   | 'panel-right-close'
   | 'panel-right-open'
-  | 'link';
+  | 'link'
+  | 'refresh'
+  | 'alert';
 
 @Component({
   selector: 'app-icon',
@@ -179,6 +181,14 @@ export type IconName =
         @case ('link') {
           <path d="M10 13a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2" />
           <path d="M14 11a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2" />
+        }
+        @case ('refresh') {
+          <path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.9 1 6.4 2.6L21 8" />
+          <path d="M21 3v5h-5" />
+        }
+        @case ('alert') {
+          <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+          <path d="M12 9v4M12 17h.01" />
         }
       }
     </svg>

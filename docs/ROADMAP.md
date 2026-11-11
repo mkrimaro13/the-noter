@@ -1,7 +1,7 @@
 # The Noter — Roadmap de implementación
 
 Estado: **en ejecución**
-Última actualización: 2026-11-09
+Última actualización: 2026-11-10
 
 Este documento recoge la validación del estado actual, el plan completo de pendientes y el
 registro de etapas. Cada etapa se implementa de forma aislada, con pruebas propias y un commit
@@ -43,8 +43,10 @@ worker.
 - Metadatos `label → value` con helpers `now()`, `today()`, `time()` y formatos personalizados.
 - Código con resaltado, lenguajes, bloques de función y cheat sheet de atajos.
 - Sidebars colapsables, rail del outline, drawer móvil, contador de palabras y estado flotante.
-- Sincronización local-first con CouchDB: push por `_bulk_docs`, pull por `_changes`, tombstones,
-  copias de conflicto, reintentos con backoff, estado en la sidebar y funcionamiento offline.
+- Sincronización local-first con CouchDB: push por `_bulk_docs`, pull por `_changes`, tombstones
+  con fecha, migraciones de `schema` por documento, decisiones de conflicto (mantener esta
+  versión, la del servidor o ambas), “sincronizar ahora”, diagnóstico del servidor y
+  mantenimiento programado (compactación y purga) desde Docker Compose.
 
 ### Validación de la lista solicitada
 
@@ -120,11 +122,14 @@ endurecimiento para producción.
 
 #### P0.5 — Endurecer la sincronización
 
-- [ ] Compactación y purga programada de tombstones/revisiones.
-- [ ] Migraciones de `schema`.
-- [ ] UI para conflictos (ver las dos versiones y elegir/mezclar).
-- [ ] Botón de “sincronizar ahora” y diagnóstico del estado.
-- [ ] **Done when:** el usuario entiende y controla qué pasó con un conflicto, y la base no crece
+- [x] Compactación y purga programada de tombstones/revisiones (servicio `maintenance` en Docker
+      Compose con credenciales de admin; progreso en el documento `meta:maintenance`).
+- [x] Migraciones de `schema` (`frontend/src/app/schema.ts`, versión actual 2; los documentos
+      heredados se actualizan al recibirlos y se reenvían al servidor).
+- [x] UI para conflictos (ver las dos versiones y elegir/mezclar).
+- [x] Botón de “sincronizar ahora” y diagnóstico del estado (popover con contadores del servidor y
+      del mantenimiento).
+- [x] **Done when:** el usuario entiende y controla qué pasó con un conflicto, y la base no crece
       indefinidamente.
 
 ### P1 — Completar la experiencia de las funciones pedidas
@@ -289,13 +294,12 @@ endurecimiento para producción.
 | 8 | Búsqueda de iconos y cover por URL | ✅ Completada | `feat(icons): etapa 8 - busqueda de iconos y cover por URL` |
 | 9 | Almacenamiento de imágenes como attachments + IndexedDB | ✅ Completada | `feat(assets): etapa 9 - imagenes como attachments e IndexedDB` |
 | 10 | Papelera, undo/redo y export Markdown/PDF | ✅ Completada | `feat(data): etapa 10 - papelera, undo/redo y export` |
-| 11 | Endurecimiento de sync (compactación, migraciones, conflictos) | ⏳ Pendiente | — |
+| 11 | Endurecimiento de sync (compactación, migraciones, conflictos) | ✅ Completada | `feat(sync): etapa 11 - endurecimiento de sync` |
 | 12 | Búsqueda con resaltado, filtros y favoritos | ⏳ Pendiente | — |
 | 13 | E2E, accesibilidad, i18n y rendimiento | ⏳ Pendiente | — |
 
 ### Próxima etapa
 
-**Etapa 11 — Endurecimiento de sync (compactación, migraciones, conflictos).** Compactar y purgar
-tombstones/revisiones de forma programada, versionar el `schema` de los documentos con migraciones,
-y añadir una UI de conflictos que permita ver las dos versiones y elegir o mezclar, junto con un
-botón de “sincronizar ahora” y diagnóstico del estado.
+**Etapa 12 — Búsqueda con resaltado, filtros y favoritos.** Resaltar las coincidencias de búsqueda
+en la sidebar y el editor, filtrar por tipo/fecha/metadato, y permitir fijar notas favoritas con una
+vista rápida de acceso.

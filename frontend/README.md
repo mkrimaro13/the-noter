@@ -8,14 +8,15 @@ This folder is the Angular app of the monorepo. The repository root holds the Co
 
 ## Current state
 
-- Every feature below is implemented and covered by Playwright tests.
+- Every feature below is implemented and covered by unit tests (`npm test`).
 - Persistence is **`localStorage` first**: notes are written as one JSON array under
-  `the-noter.notes.v1` after a 250 ms debounce. Images are data URLs inside that array.
+  `the-noter.notes.v1` after a 250 ms debounce. Image bytes live in an IndexedDB blob cache and in
+  `asset:<sha256>` CouchDB attachments, so they do not bloat the array.
 - After that local write, the app syncs changed notes to a self-hosted CouchDB database. There is no
   account or login screen: the app uses one restricted database user.
 - Sync is optional. Without a valid `/sync-config.json` the app is a purely offline notebook.
-- The localStorage quota (around 5 MB) is still the main limitation, because images remain inline
-  data URLs. Moving images to CouchDB attachments and the store to IndexedDB are later milestones.
+- The localStorage quota (around 5 MB) now applies to the note JSON itself; images no longer count
+  against it. Moving the whole store to IndexedDB is a later milestone.
 
 ## What it does
 
@@ -89,9 +90,9 @@ This folder is the Angular app of the monorepo. The repository root holds the Co
   Pasting into a text, heading, or list block inserts the image after that block.
 - **Drag & drop** — use the grip beside any block to move it up or down. Blocks can also be
   moved with `↑` / `↓` while the grip is focused.
-- **Local-first** — notes, images, and the selected note are saved to `localStorage` before any
-  network request. A small pill in the sidebar confirms storage and reports sync state; it turns
-  into a warning if the quota fills up. See [Sync](#sync) below.
+- **Local-first** — notes and the selected note are saved to `localStorage` (images go to the
+  IndexedDB blob cache) before any network request. A small pill in the sidebar confirms storage and
+  reports sync state; it turns into a warning if the quota fills up. See [Sync](#sync) below.
 - **Responsive** — a two-column writing surface plus the outline on wide desktops, and an
   off-canvas notes drawer on small screens.
 - **Themes** — light and dark palettes with pastel indigo accents follow the operating system
@@ -120,9 +121,13 @@ never waits for the network to accept an edit.
 ### Push and pull
 
 - **Push** — `POST /_bulk_docs` with one document per changed note (`_id: "note:<id>"`) and the last
-  known `_rev`. Deletions are sent as `_deleted: true` tombstones.
+  known `_rev`. Deletions are sent as dated `_deleted: true` tombstones, so the backend maintenance
+  schedule can purge them after a retention window.
 - **Pull** — `GET /_changes?since=<cursor>&include_docs=true&conflicts=true`. The cursor (`last_seq`)
   and every known `_rev` are persisted, so only new changes are fetched.
+- Documents without the current `schema` version are migrated when they are pulled
+  (`src/app/schema.ts`) and the upgraded note is queued for re-upload, so legacy data upgrades
+  itself as it is read.
 - A note is written to `localStorage` only when the incoming `updatedAt` is not older than the local
   one. Local timestamps are kept monotonic so two edits in the same millisecond still compare
   correctly.
@@ -131,21 +136,32 @@ never waits for the network to accept an edit.
 
 ### Conflicts
 
-If CouchDB rejects a push with `409`, the app reads the current server version, saves it as a new
-note titled `Title (conflict YYYY-MM-DD HH:mm)`, and retries the local edit against the new
-revision. Both texts survive.
+If two devices edit the same note before seeing each other's revision, the note is **frozen** as a
+pending decision instead of being copied or overwritten. The sidebar shows a "Sync conflicts"
+section that previews both sides (title, timestamp, and the first words of the body) and offers three
+choices:
 
-Server-side conflicts (`_conflicts` on a pulled document) are resolved the same way: the losing
-revision is copied into a new note, and the copy plus the winning note are written to
-`localStorage` first. Only after that does the app delete the losing revision on the server, so a
-crash cannot lose the losing text. The conflict copy is then pushed as its own document.
+- **Keep this device** — the local edit is re-pushed against the server revision.
+- **Keep the server** — the local note is replaced with the server version.
+- **Keep both** — the other side survives as a new note titled `Title (conflict YYYY-MM-DD HH:mm)`.
+
+Push and pull skip the note entirely while the decision is pending, so neither side overwrites the
+other while the user reads the previews. Decisions are deduplicated per revision and persisted in
+`localStorage['the-noter.conflicts.v1']`, so they survive a reload.
+
+Server-side conflicts (`_conflicts` on a pulled document) work the same way: the winning revision is
+applied as the current note and each losing revision becomes the "server" side of a decision. The
+losing revision is only deleted from the server **after** the user decides, so a crash can never lose
+the losing text. A note deleted locally that conflicts with a remote edit is flagged ("in trash") so
+the user knows the decision is about a deletion.
 
 ### Offline behavior and status
 
 Network failures (server unreachable or a timeout) move the pill to **Offline** and schedule a retry
 after 5 seconds, doubling up to 60 seconds. Credential, CORS, or other CouchDB errors show **Sync
 error** instead. Sync also runs when the browser fires `online`, when the tab becomes visible, and
-every 30 seconds while the tab is visible. There is no manual button.
+every 30 seconds while the tab is visible. The **Sync now** button in the sidebar footer runs a full
+pass on demand (disabled while a pass is in progress).
 
 The pill reports storage first and then the sync state. It starts with **Saved locally** except when
 the local write itself failed:
@@ -158,6 +174,12 @@ the local write itself failed:
 | `Saved locally · Offline`    | Server unreachable; changes are queued and retried          |
 | `Saved locally · Sync error` | Credentials, CORS, or a CouchDB error; see the pill tooltip |
 | `Not saved`                  | `localStorage` write failed (usually the quota)             |
+
+Clicking the pill opens a diagnostics popover: last sync time, queued changes, server document and
+tombstone counters, whether compaction is running, and the backend maintenance schedule's progress
+(read from the `meta:maintenance` document). A failed read keeps the last values shown. A sync that
+ends with pending conflict decisions reports it in the pill's message, and the queued note is not
+counted as pending work, so retries stop while the user decides.
 
 ### Configuration
 
@@ -235,13 +257,15 @@ The container entrypoint writes `/sync-config.json` from `SYNC_URL`, `SYNC_USER`
 src/app/
   app.ts                    app shell, sidebar drawer, empty state
   note-store.ts             signal store, note tree, localStorage persistence
-  sync.ts                   local-first push/pull sync, conflicts, retries
+  sync.ts                   local-first push/pull sync, conflict decisions, retries
+  schema.ts                 per-document schema version and migrations
+  conflict-preview.ts       title/timestamp/body preview for conflict cards
   models.ts                 note/block types and factories
   markdown.ts               inline links/code and fenced-code parsing
   latex.ts                  LaTeX detection and delimiter stripping
   image.ts                  image reading, scaling, and compression
   format.ts                 relative time and word count helpers
-  notes-sidebar/            nested note tree, search, delete confirmation
+  notes-sidebar/            nested note tree, search, conflicts section, sync footer
   note-editor/              cover, icon, title, metadata, sub-notes, block list
   note-block/               text, heading, list, image, code, and function editors
   note-block/image-column/  one image-block column (writing or picture)
@@ -254,13 +278,14 @@ Notes are stored under `the-noter.notes.v1` in `localStorage`; selected-note, si
 visibility, and writing-typeface preferences use `the-noter.selection.v1`,
 `the-noter.ui.notes-visible`, `the-noter.ui.outline-visible`, and
 `the-noter.ui.writing-font`. Sync bookkeeping lives in `the-noter.sync.v1` (cursor, known
-revisions, and the dirty/deleted queues); `the-noter.sync.disabled` turns sync off.
+revisions, and the dirty/deleted queues), `the-noter.conflicts.v1` holds pending conflict decisions,
+and `the-noter.sync.disabled` turns sync off.
 
 Clearing site data resets the app, but it also removes the sync cursor. On the next start the app
 treats the server as the source of truth for existing notes; anything still in `localStorage` is
-pushed first. Images are encoded as data URLs and share the browser's localStorage quota (usually
-around 5 MB), which is why moving them to CouchDB attachments and the store to IndexedDB are the next
-storage steps.
+pushed first. Image bytes are kept in an IndexedDB blob cache and in `asset:<sha256>` CouchDB
+attachments, so they no longer count against the ~5 MB `localStorage` quota; moving the whole note
+store to IndexedDB is the next storage step.
 
 See [../backend/REPLICATION.md](../backend/REPLICATION.md) for the wire protocol, document shape,
 and conflict rules.

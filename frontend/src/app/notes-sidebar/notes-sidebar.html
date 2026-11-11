@@ -317,6 +317,84 @@
       }
     </section>
 
+    @if (sync.conflicts().length > 0) {
+      <section class="conflicts" [class.open]="conflictsOpen()">
+        <button
+          class="conflicts-toggle"
+          type="button"
+          (click)="toggleConflicts()"
+          [attr.aria-expanded]="conflictsOpen()"
+          aria-controls="conflicts-list"
+        >
+          <app-icon name="alert" [size]="13" />
+          <span>Sync conflicts</span>
+          <span class="conflicts-count">{{ sync.conflicts().length }}</span>
+          <app-icon
+            class="conflicts-chevron"
+            [name]="conflictsOpen() ? 'chevron-down' : 'chevron-right'"
+            [size]="12"
+          />
+        </button>
+
+        @if (conflictsOpen()) {
+          <div class="conflicts-list" id="conflicts-list">
+            @for (row of conflictRows(); track row.conflict.id) {
+              <article class="conflict-card">
+                <header class="conflict-card-title">
+                  {{ row.mine.title }}
+                  @if (row.inTrash) {
+                    <span class="conflict-tag">in trash</span>
+                  }
+                  @if (row.conflict.deletedLocally) {
+                    <span class="conflict-tag">deleted here</span>
+                  }
+                </header>
+                <div class="conflict-sides">
+                  <div class="conflict-side">
+                    <span class="conflict-side-label">This device</span>
+                    <p class="conflict-side-preview">{{ row.mine.preview }}</p>
+                    <span class="conflict-side-sub">
+                      {{ row.mine.updatedAt ? relativeTime(row.mine.updatedAt) : '—' }}
+                    </span>
+                  </div>
+                  <div class="conflict-side">
+                    <span class="conflict-side-label">Server</span>
+                    <p class="conflict-side-preview">{{ row.theirs.preview }}</p>
+                    <span class="conflict-side-sub">
+                      {{ row.theirs.updatedAt ? relativeTime(row.theirs.updatedAt) : '—' }}
+                    </span>
+                  </div>
+                </div>
+                <div class="conflict-actions">
+                  <button
+                    class="conflict-action"
+                    type="button"
+                    (click)="resolveConflict(row, 'mine')"
+                  >
+                    Keep this device
+                  </button>
+                  <button
+                    class="conflict-action"
+                    type="button"
+                    (click)="resolveConflict(row, 'theirs')"
+                  >
+                    Keep server
+                  </button>
+                  <button
+                    class="conflict-action"
+                    type="button"
+                    (click)="resolveConflict(row, 'both')"
+                  >
+                    Keep both
+                  </button>
+                </div>
+              </article>
+            }
+          </div>
+        }
+      </section>
+    }
+
     <div class="backup-actions">
       <button
         class="backup-action"
@@ -352,20 +430,51 @@
     }
 
     <footer class="sidebar-footer">
-      <span
+      <button
+        class="sync-now"
+        type="button"
+        (click)="syncNow()"
+        [disabled]="sync.status() === 'syncing'"
+        title="Synchronize now"
+        aria-label="Synchronize now"
+      >
+        <app-icon name="refresh" [size]="13" />
+      </button>
+      <button
         class="save-state"
+        type="button"
+        (click)="toggleDiagnostics()"
         aria-live="polite"
         [class.error]="store.storageError() || sync.status() === 'error'"
         [class.syncing]="sync.status() === 'syncing'"
         [attr.title]="saveTitle()"
+        [attr.aria-expanded]="diagnosticsOpen()"
+        aria-controls="sync-popover"
       >
         <app-icon class="save-icon" name="logo" [size]="12" />
         <span class="dot"></span>
         {{ saveLabel() }}
-      </span>
+      </button>
       <span class="footer-count">{{
         store.total() === 1 ? '1 note' : store.total() + ' notes'
       }}</span>
+
+      @if (diagnosticsOpen()) {
+        <div class="sync-popover" id="sync-popover" role="dialog" aria-label="Sync status">
+          <p class="sync-popover-message">{{ saveTitle() }}</p>
+          <dl class="sync-popover-rows">
+            @for (row of diagnosticRows(); track row.label) {
+              <div class="sync-popover-row">
+                <dt>{{ row.label }}</dt>
+                <dd>{{ row.value }}</dd>
+              </div>
+            }
+          </dl>
+          @if (!sync.diagnostics()) {
+            <p class="sync-popover-empty">Server status is unavailable.</p>
+          }
+        </div>
+      }
     </footer>
   </div>
 </aside>

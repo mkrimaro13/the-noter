@@ -1,9 +1,11 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { AssetStore, assetHash, blobToBase64, isAssetRef } from './assets';
 import { Note, uid } from './models';
+import { CURRENT_SCHEMA, migrateNoteDoc } from './schema';
 
 const CONFIG_URL = '/sync-config.json';
 const STATE_KEY = 'the-noter.sync.v1';
+const CONFLICTS_KEY = 'the-noter.conflicts.v1';
 /** Set to `1` to run the app without a server (used by offline/automation runs). */
 const DISABLED_KEY = 'the-noter.sync.disabled';
 const SYNC_DELAY = 400;
@@ -11,6 +13,8 @@ const PUSH_RETRY_BASE = 5_000;
 const PUSH_RETRY_MAX = 60_000;
 const POLL_INTERVAL = 30_000;
 const REQUEST_TIMEOUT = 15_000;
+/** Document id where the backend maintenance script records its progress. */
+const MAINTENANCE_DOC_ID = 'meta:maintenance';
 
 export type SyncStatus = 'disabled' | 'idle' | 'syncing' | 'synced' | 'offline' | 'error';
 
@@ -47,6 +51,49 @@ export interface RemoteApply {
   deletes: string[];
   /** Losing conflict revisions, copied into new notes so nothing is lost. */
   copies: RemoteNoteDoc[];
+  /**
+   * Skips the "a newer local note wins" guard so a conflict resolution is
+   * applied even when the local copy looks newer.
+   */
+  force?: boolean;
+}
+
+/** What the user picked for a sync conflict. */
+export type ConflictChoice = 'mine' | 'theirs' | 'both';
+
+/** Where a conflict was detected; it changes what resolution has to do. */
+export type ConflictOrigin = 'push' | 'pull';
+
+export interface NoteConflict {
+  /** Note id the conflict is about. */
+  id: string;
+  /** Revision of the other side, used to dedup repeated detections. */
+  theirsRev: string;
+  /** The other side's note fields, or null when it is gone from the server. */
+  theirs: Record<string, unknown> | null;
+  origin: ConflictOrigin;
+  /** True when the local side is a delete waiting to be pushed. */
+  deletedLocally: boolean;
+  at: number;
+}
+
+/** Progress of the backend compaction/purge schedule, read from `meta:maintenance`. */
+export interface MaintenanceInfo {
+  firstRun: number | null;
+  lastCompaction: number | null;
+  lastPurge: number | null;
+  purged: number | null;
+  intervalSeconds: number | null;
+}
+
+/** Server-side counters shown by the sync diagnostics popover. */
+export interface SyncDiagnostics {
+  at: number;
+  docCount: number | null;
+  deletedCount: number | null;
+  purgeSeq: number | string | null;
+  compactRunning: boolean | null;
+  maintenance: MaintenanceInfo | null;
 }
 
 export interface SyncHandlers {
@@ -91,16 +138,28 @@ export class SyncService {
   /** Human-readable explanation for the current status. */
   readonly message = signal('Waiting to sync.');
   readonly lastSyncedAt = signal<number | null>(null);
+  /** Conflicts waiting for the user's decision. */
+  readonly conflicts = signal<NoteConflict[]>([]);
+  /** Local edits and deletes that still need a push, ignoring conflicted ids. */
+  readonly pendingCount = signal(0);
+  /** Last server-side counters read by {@link refreshDiagnostics}. */
+  readonly diagnostics = signal<SyncDiagnostics | null>(null);
 
   private config: SyncConfig | null = null;
   private handlers: SyncHandlers | null = null;
   private state: SyncState = loadState();
+  private conflictMap: Record<string, NoteConflict> = loadConflicts();
   private running = false;
   private again = false;
   private failures = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private pollTimer: ReturnType<typeof setInterval> | undefined;
   private started = false;
+
+  constructor() {
+    this.conflicts.set(Object.values(this.conflictMap));
+    this.refreshPending();
+  }
 
   start(handlers: SyncHandlers): void {
     if (this.started) return;
@@ -117,7 +176,7 @@ export class SyncService {
    */
   notifyPersisted(): void {
     if (!this.config?.enabled) return;
-    if (this.state.dirty.length === 0 && this.state.removed.length === 0) return;
+    if (this.pendingCount() === 0) return;
     if (this.running) {
       this.again = true;
       return;
@@ -167,16 +226,16 @@ export class SyncService {
 
     const onOnline = () => {
       this.failures = 0;
-      void this.syncNow(true);
+      void this.runSync(true);
     };
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') void this.syncNow(true);
+      if (document.visibilityState === 'visible') void this.runSync(true);
     };
 
     window.addEventListener('online', onOnline);
     document.addEventListener('visibilitychange', onVisibility);
     this.pollTimer = setInterval(() => {
-      if (document.visibilityState !== 'hidden') void this.syncNow(true);
+      if (document.visibilityState !== 'hidden') void this.runSync(true);
     }, POLL_INTERVAL);
 
     this.destroyRef.onDestroy(() => {
@@ -186,10 +245,19 @@ export class SyncService {
       this.clearTimer();
     });
 
-    void this.syncNow(true);
+    void this.runSync(true);
   }
 
-  private async syncNow(quiet = false): Promise<void> {
+  /**
+   * Runs a full pass immediately, for the sidebar's "Sync now" button. Unlike
+   * the background triggers this always shows the syncing state.
+   */
+  async syncNow(): Promise<void> {
+    await this.runSync(false);
+    await this.refreshDiagnostics();
+  }
+
+  private async runSync(quiet = false): Promise<void> {
     if (!this.config?.enabled || !this.handlers) return;
     if (this.running) {
       this.again = true;
@@ -200,7 +268,7 @@ export class SyncService {
     this.again = false;
     this.clearTimer();
 
-    const hasPending = this.state.dirty.length > 0 || this.state.removed.length > 0;
+    const hasPending = this.pendingCount() > 0;
     if (!quiet || hasPending) this.status.set('syncing');
 
     try {
@@ -208,14 +276,14 @@ export class SyncService {
       await this.pull();
       this.failures = 0;
 
-      if (this.state.dirty.length > 0 || this.state.removed.length > 0) {
+      if (this.pendingCount() > 0 || this.again) {
         // A conflict copy or a local edit arrived while the pass was running.
         this.status.set('syncing');
         this.message.set('Finishing sync…');
       } else {
         this.lastSyncedAt.set(Date.now());
         this.status.set('synced');
-        this.message.set('Everything is saved on this device and on the server.');
+        this.message.set(this.statusMessage());
       }
     } catch (error) {
       if (error instanceof SyncHttpError && error.status < 500) {
@@ -235,7 +303,7 @@ export class SyncService {
       this.running = false;
       this.saveState();
 
-      const pending = this.state.dirty.length > 0 || this.state.removed.length > 0;
+      const pending = this.pendingCount() > 0;
       if (this.failures > 0) {
         const delay = Math.min(PUSH_RETRY_BASE * 2 ** (this.failures - 1), PUSH_RETRY_MAX);
         this.schedule(delay);
@@ -243,6 +311,13 @@ export class SyncService {
         this.schedule(SYNC_DELAY);
       }
     }
+  }
+
+  /** Success text, mentioning conflicts because they pause the queues. */
+  private statusMessage(): string {
+    const count = Object.keys(this.conflictMap).length;
+    if (count === 0) return 'Everything is saved on this device and on the server.';
+    return `${count} note${count === 1 ? '' : 's'} need${count === 1 ? 's' : ''} your decision before syncing.`;
   }
 
   private async push(): Promise<void> {
@@ -255,6 +330,9 @@ export class SyncService {
     const docs: Record<string, unknown>[] = [];
 
     for (const id of [...dirty]) {
+      // A note with a pending conflict stays queued until the user decides;
+      // pushing now would either overwrite the other side or 409 again.
+      if (this.conflictMap[id]) continue;
       const note = notes.get(id);
       if (!note) {
         // The note disappeared without `markDeleted`; keep the deletion.
@@ -266,7 +344,14 @@ export class SyncService {
     }
 
     for (const id of removed) {
-      const doc: Record<string, unknown> = { _id: noteDocId(id), _deleted: true };
+      if (this.conflictMap[id]) continue;
+      // `deletedAt` lets the backend purge schedule age tombstones out.
+      const doc: Record<string, unknown> = {
+        _id: noteDocId(id),
+        _deleted: true,
+        type: 'note',
+        deletedAt: Date.now(),
+      };
       const rev = this.state.revs[id];
       if (rev) doc['_rev'] = rev;
       docs.push(doc);
@@ -279,13 +364,11 @@ export class SyncService {
     // The bytes have to exist on the server before a note can reference them.
     // Uploads are content-addressed, so a `409` simply means someone else got
     // there first.
-    const pushed = [...dirty].map((id) => notes.get(id));
+    const pushed = [...dirty].filter((id) => !this.conflictMap[id]).map((id) => notes.get(id));
     await this.pushAssets(pushed.filter((note): note is Note => note !== undefined));
 
     const result = await this.request('POST', '/_bulk_docs', { docs });
     if (!Array.isArray(result)) throw new SyncError('Unexpected response from CouchDB.');
-
-    const copies: RemoteNoteDoc[] = [];
 
     for (const entry of result) {
       if (!isRecord(entry)) continue;
@@ -307,8 +390,7 @@ export class SyncService {
 
       const error = typeof entry['error'] === 'string' ? entry['error'] : 'unknown';
       if (error === 'conflict') {
-        const copy = await this.resolveConflict(id, removed.has(id));
-        if (copy) copies.push(copy);
+        await this.registerPushConflict(id, removed.has(id));
         continue;
       }
 
@@ -324,12 +406,6 @@ export class SyncService {
     }
 
     this.saveState();
-
-    // Conflict copies are added to the store first; the store persists them and
-    // calls `notifyPersisted` before they are pushed on the next pass.
-    if (copies.length > 0) {
-      handlers.applyRemote({ notes: [], deletes: [], copies });
-    }
   }
 
   /**
@@ -422,13 +498,15 @@ export class SyncService {
     const rows = Array.isArray(result['results']) ? result['results'] : [];
     const local = new Map(handlers.getNotes().map((note) => [note.id, note]));
     const apply: RemoteApply = { notes: [], deletes: [], copies: [] };
-    const losingRevisions: Array<{ id: string; rev: string }> = [];
     let touched = false;
 
     for (const row of rows) {
       if (!isRecord(row)) continue;
       const id = noteIdFromDoc(typeof row['id'] === 'string' ? row['id'] : '');
       if (!id) continue;
+
+      // Notes with a pending decision are frozen until the user resolves them.
+      if (this.conflictMap[id]) continue;
 
       const rev = firstChangeRev(row);
       const deleted = row['deleted'] === true;
@@ -469,20 +547,21 @@ export class SyncService {
       }
 
       if (rev) this.state.revs[id] = rev;
-      apply.notes.push({ id, rev, data: noteDataFromDoc(doc, id) });
+      const migrated = migrateNoteDoc(doc);
+      apply.notes.push({ id, rev, data: noteDataFromDoc(migrated.doc, id) });
       touched = true;
+      if (migrated.changed) {
+        // The stored shape was upgraded; queue the note so the migrated
+        // document is pushed back on the next pass.
+        this.markDirty(id);
+      }
 
-      const conflicts = Array.isArray(doc['_conflicts']) ? doc['_conflicts'] : [];
-      for (const conflictRev of conflicts) {
+      // A losing revision on the server is preserved as a decision instead of
+      // an automatic copy: the user chooses between it and the current note.
+      const conflictRevs = Array.isArray(doc['_conflicts']) ? doc['_conflicts'] : [];
+      for (const conflictRev of conflictRevs) {
         if (typeof conflictRev !== 'string') continue;
-        const conflictDoc = await this.request(
-          'GET',
-          `/${encodeURIComponent(noteDocId(id))}?rev=${encodeURIComponent(conflictRev)}`,
-        );
-        if (isRecord(conflictDoc)) {
-          apply.copies.push(this.makeConflictCopy(conflictDoc));
-          losingRevisions.push({ id, rev: conflictRev });
-        }
+        if (await this.registerPullConflict(id, conflictRev)) break;
       }
     }
 
@@ -490,36 +569,19 @@ export class SyncService {
     if (typeof lastSeq === 'number' || typeof lastSeq === 'string') this.state.since = lastSeq;
 
     this.saveState();
-    const saved = touched || apply.copies.length > 0 ? handlers.applyRemote(apply) : true;
-
-    // Only remove the losing revisions after the winning note and every copy
-    // have reached localStorage. A crash can then never lose the losing text.
-    if (saved && losingRevisions.length > 0) {
-      const ids = new Set<string>();
-      for (const losing of losingRevisions) {
-        await this.deleteConflictRevision(losing.id, losing.rev);
-        ids.add(losing.id);
-      }
-      for (const id of ids) {
-        const fresh = await this.request('GET', `/${encodeURIComponent(noteDocId(id))}?revs=false`);
-        if (isRecord(fresh) && typeof fresh['_rev'] === 'string') {
-          this.state.revs[id] = fresh['_rev'];
-        }
-      }
-      this.saveState();
-    }
+    if (touched) handlers.applyRemote(apply);
 
     // Notes are already in the store; the directive retries the image binding
     // as soon as each blob lands in IndexedDB.
-    await this.pullAssets([...apply.notes, ...apply.copies]);
+    await this.pullAssets(apply.notes);
   }
 
   /**
-   * Handles a `409` for a local edit or delete. The server version is returned
-   * as a copy (so both texts survive) while the local operation keeps its place
-   * in the queue and is retried with the current revision.
+   * Handles a `409` for a local edit or delete: the server version is recorded
+   * as a pending decision while the local operation stays queued. Pushing it
+   * before the decision would either overwrite the other side or fail again.
    */
-  private async resolveConflict(id: string, deleting: boolean): Promise<RemoteNoteDoc | null> {
+  private async registerPushConflict(id: string, deleting: boolean): Promise<void> {
     let doc: Record<string, unknown> | null = null;
 
     try {
@@ -527,18 +589,130 @@ export class SyncService {
       if (isRecord(result)) doc = result;
     } catch (error) {
       if (error instanceof SyncHttpError && error.status === 404) {
+        // The note is gone from the server; drop the stale revision so the
+        // local edit is retried as a fresh write (or the delete is skipped).
         delete this.state.revs[id];
-        if (deleting) this.state.removed = this.state.removed.filter((item) => item !== id);
-        return null;
+        return;
       }
       throw error;
     }
 
-    if (!doc) return null;
+    if (!doc) return;
 
     const rev = typeof doc['_rev'] === 'string' ? doc['_rev'] : '';
     if (rev) this.state.revs[id] = rev;
-    return this.makeConflictCopy(doc);
+    const migrated = migrateNoteDoc(doc);
+    this.registerConflict({
+      id,
+      theirsRev: rev,
+      theirs: noteDataFromDoc(migrated.doc, id),
+      origin: 'push',
+      deletedLocally: deleting,
+      at: Date.now(),
+    });
+  }
+
+  /**
+   * Records a losing server revision as a pending decision. Returns true when
+   * the conflict is pending (or was already), so extra losing revisions of the
+   * same note can wait for a later pass.
+   */
+  private async registerPullConflict(id: string, losingRev: string): Promise<boolean> {
+    const existing = this.conflictMap[id];
+    if (existing && existing.theirsRev === losingRev) return true;
+
+    let doc: Record<string, unknown> | null = null;
+    try {
+      const result = await this.request(
+        'GET',
+        `/${encodeURIComponent(noteDocId(id))}?rev=${encodeURIComponent(losingRev)}`,
+      );
+      if (isRecord(result)) doc = result;
+    } catch (error) {
+      if (error instanceof SyncHttpError && error.status === 404) return false;
+      throw error;
+    }
+
+    if (!doc) return false;
+    const migrated = migrateNoteDoc(doc);
+    this.registerConflict({
+      id,
+      theirsRev: losingRev,
+      theirs: noteDataFromDoc(migrated.doc, id),
+      origin: 'pull',
+      deletedLocally: false,
+      at: Date.now(),
+    });
+    return true;
+  }
+
+  /** Stores a conflict once per `(note, revision)` pair. */
+  private registerConflict(conflict: NoteConflict): void {
+    const existing = this.conflictMap[conflict.id];
+    if (existing && existing.theirsRev === conflict.theirsRev) return;
+    this.conflictMap[conflict.id] = conflict;
+    this.saveConflicts();
+  }
+
+  /**
+   * Applies the user's decision for a note. `mine` keeps the local version and
+   * retries the push, `theirs` adopts the other side, and `both` keeps the
+   * other side as a "(conflict …)" copy while the local version is pushed.
+   */
+  async resolveConflict(noteId: string, choice: ConflictChoice): Promise<void> {
+    const conflict = this.conflictMap[noteId];
+    const handlers = this.handlers;
+    if (!conflict || !handlers) return;
+
+    if (choice === 'mine') {
+      // Push origins re-queue the local version against the recorded revision;
+      // pull origins already match the winning server revision. A delete stays
+      // queued on its own, so it must not turn into a note upload.
+      if (conflict.origin === 'push' && !conflict.deletedLocally) this.markDirty(noteId);
+    } else if (choice === 'theirs') {
+      if (conflict.theirs) {
+        const saved = handlers.applyRemote({
+          notes: [{ id: noteId, rev: conflict.theirsRev, data: conflict.theirs }],
+          deletes: [],
+          copies: [],
+          force: true,
+        });
+        if (!saved) return;
+        if (conflict.origin === 'pull') {
+          // The adopted version must overwrite the winner on the server.
+          this.markDirty(noteId);
+        } else {
+          this.clearQueues(noteId);
+        }
+      } else {
+        // The other side no longer exists; accept the local deletion.
+        handlers.applyRemote({ notes: [], deletes: [noteId], copies: [] });
+        this.clearQueues(noteId);
+      }
+    } else {
+      if (conflict.theirs) {
+        const copy = this.makeConflictCopy(conflict.theirs);
+        if (!handlers.applyRemote({ notes: [], deletes: [], copies: [copy] })) return;
+      }
+      // The local edit is pushed next; a pending delete stays queued as is.
+      if (conflict.origin === 'push' && !conflict.deletedLocally) this.markDirty(noteId);
+    }
+
+    // Pull conflicts must drop the losing revision, but only after its content
+    // is either kept as a copy or discarded on purpose.
+    if (conflict.origin === 'pull' && conflict.theirsRev) {
+      await this.deleteConflictRevision(noteId, conflict.theirsRev);
+    }
+
+    delete this.conflictMap[noteId];
+    this.saveConflicts();
+    this.schedule(SYNC_DELAY);
+  }
+
+  private clearQueues(noteId: string): void {
+    this.state.dirty = this.state.dirty.filter((id) => id !== noteId);
+    this.state.removed = this.state.removed.filter((id) => id !== noteId);
+    this.saveState();
   }
 
   private async deleteConflictRevision(id: string, rev: string): Promise<void> {
@@ -553,13 +727,14 @@ export class SyncService {
     }
   }
 
-  private makeConflictCopy(doc: Record<string, unknown>): RemoteNoteDoc {
+  /** Copies the other side of a conflict into a new note so nothing is lost. */
+  private makeConflictCopy(data: Record<string, unknown>): RemoteNoteDoc {
     const id = uid('n');
-    const data = noteDataFromDoc(doc, id);
-    const title = typeof data['title'] === 'string' ? data['title'].trim() : '';
-    data['title'] = `${title || 'Untitled'} (conflict ${conflictStamp()})`;
-    data['updatedAt'] = Date.now();
-    return { id, rev: '', data };
+    const copy: Record<string, unknown> = { ...data, id };
+    const title = typeof copy['title'] === 'string' ? copy['title'].trim() : '';
+    copy['title'] = `${title || 'Untitled'} (conflict ${conflictStamp()})`;
+    copy['updatedAt'] = Date.now();
+    return { id, rev: '', data: copy };
   }
 
   private toDoc(note: Note, rev?: string): Record<string, unknown> {
@@ -567,7 +742,7 @@ export class SyncService {
     const doc: Record<string, unknown> = {
       _id: noteDocId(id),
       type: 'note',
-      schema: 1,
+      schema: CURRENT_SCHEMA,
       ...rest,
     };
     if (rev) doc['_rev'] = rev;
@@ -674,6 +849,74 @@ export class SyncService {
       // The notes themselves are already saved; a lost cursor only costs a
       // full comparison on the next start.
     }
+    this.refreshPending();
+  }
+
+  private saveConflicts(): void {
+    try {
+      localStorage.setItem(CONFLICTS_KEY, JSON.stringify(this.conflictMap));
+    } catch {
+      // The conflict still shows in this session; only the record is lost.
+    }
+    this.conflicts.set(Object.values(this.conflictMap));
+    this.refreshPending();
+  }
+
+  /**
+   * Queued ids with a pending conflict never auto-schedule: they are excluded
+   * so the retry loop stops while the user decides.
+   */
+  private refreshPending(): void {
+    const conflicted = new Set(Object.keys(this.conflictMap));
+    this.pendingCount.set(
+      this.state.dirty.filter((id) => !conflicted.has(id)).length +
+        this.state.removed.filter((id) => !conflicted.has(id)).length,
+    );
+  }
+
+  /**
+   * Reads server-side counters for the diagnostics popover: database totals
+   * from `GET /<db>` and the maintenance schedule from `meta:maintenance`.
+   * Uses the app credentials; a failure keeps the last successful read.
+   */
+  async refreshDiagnostics(): Promise<void> {
+    if (!this.config?.enabled) return;
+
+    let info: Record<string, unknown> | null = null;
+    try {
+      const result = await this.request('GET', '');
+      if (isRecord(result)) info = result;
+    } catch {
+      return;
+    }
+    if (!info) return;
+
+    let maintenance: MaintenanceInfo | null = null;
+    try {
+      const result = await this.request('GET', `/${encodeURIComponent(MAINTENANCE_DOC_ID)}`);
+      if (isRecord(result)) {
+        maintenance = {
+          firstRun: optionalNumber(result, 'firstRun'),
+          lastCompaction: optionalNumber(result, 'lastCompaction'),
+          lastPurge: optionalNumber(result, 'lastPurge'),
+          purged: optionalNumber(result, 'purged'),
+          intervalSeconds: optionalNumber(result, 'intervalSeconds'),
+        };
+      }
+    } catch {
+      // The maintenance service may not have run yet.
+    }
+
+    const purgeSeq = info['purge_seq'];
+    const compacting = info['compact_running'];
+    this.diagnostics.set({
+      at: Date.now(),
+      docCount: optionalNumber(info, 'doc_count'),
+      deletedCount: optionalNumber(info, 'doc_del_count'),
+      purgeSeq: typeof purgeSeq === 'number' || typeof purgeSeq === 'string' ? purgeSeq : null,
+      compactRunning: compacting === true || compacting === false ? compacting : null,
+      maintenance,
+    });
   }
 }
 
@@ -734,6 +977,42 @@ function loadState(): SyncState {
   } catch {
     return empty;
   }
+}
+
+function loadConflicts(): Record<string, NoteConflict> {
+  try {
+    const raw = localStorage.getItem(CONFLICTS_KEY);
+    if (!raw) return {};
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) return {};
+
+    const conflicts: Record<string, NoteConflict> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!isRecord(value)) continue;
+      const theirsRev = typeof value['theirsRev'] === 'string' ? value['theirsRev'] : '';
+      if (!key || !theirsRev) continue;
+      const theirs = isRecord(value['theirs']) ? value['theirs'] : null;
+      const origin = value['origin'] === 'pull' ? 'pull' : 'push';
+      const at = optionalNumber(value, 'at');
+      conflicts[key] = {
+        id: key,
+        theirsRev,
+        theirs,
+        origin,
+        deletedLocally: value['deletedLocally'] === true,
+        at: at ?? 0,
+      };
+    }
+    return conflicts;
+  } catch {
+    return {};
+  }
+}
+
+function optionalNumber(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 function noteDocId(noteId: string): string {

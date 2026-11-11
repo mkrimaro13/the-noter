@@ -3,9 +3,9 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Note, NoteBlock, createBlock, createNote } from '../models';
-import { NoteStore } from '../note-store';
 import { NoteBlock as NoteBlockEditor } from '../note-block/note-block';
-import { SyncService, SyncStatus } from '../sync';
+import { NoteStore } from '../note-store';
+import { NoteConflict, SyncDiagnostics, SyncService, SyncStatus } from '../sync';
 import { SubnoteBlock } from './subnote-block';
 
 const NOTES_KEY = 'the-noter.notes.v1';
@@ -14,10 +14,17 @@ function fakeSync() {
   return {
     status: signal<SyncStatus>('idle'),
     message: signal(''),
+    lastSyncedAt: signal<number | null>(null),
+    conflicts: signal<NoteConflict[]>([]),
+    pendingCount: signal(0),
+    diagnostics: signal<SyncDiagnostics | null>(null),
     start: vi.fn(),
     markDirty: vi.fn(),
     markDeleted: vi.fn(),
     notifyPersisted: vi.fn(),
+    syncNow: vi.fn(async () => {}),
+    refreshDiagnostics: vi.fn(async () => {}),
+    resolveConflict: vi.fn(async () => {}),
   };
 }
 

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './app';
 import { Note, createBlock, createNote } from './models';
 import { NoteStore } from './note-store';
-import { SyncService, SyncStatus } from './sync';
+import { NoteConflict, SyncDiagnostics, SyncService, SyncStatus } from './sync';
 
 const NOTES_KEY = 'the-noter.notes.v1';
 const NOTES_VISIBLE_KEY = 'the-noter.ui.notes-visible';
@@ -14,10 +14,17 @@ function fakeSync() {
   return {
     status: signal<SyncStatus>('idle'),
     message: signal(''),
+    lastSyncedAt: signal<number | null>(null),
+    conflicts: signal<NoteConflict[]>([]),
+    pendingCount: signal(0),
+    diagnostics: signal<SyncDiagnostics | null>(null),
     start: vi.fn(),
     markDirty: vi.fn(),
     markDeleted: vi.fn(),
     notifyPersisted: vi.fn(),
+    syncNow: vi.fn(async () => {}),
+    refreshDiagnostics: vi.fn(async () => {}),
+    resolveConflict: vi.fn(async () => {}),
   };
 }
 

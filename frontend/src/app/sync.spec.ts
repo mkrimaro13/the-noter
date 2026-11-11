@@ -2,9 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssetStore } from './assets';
 import { Note, createNote } from './models';
-import { SyncHandlers, SyncService } from './sync';
+import { RemoteApply, SyncHandlers, SyncService } from './sync';
 
 const STATE_KEY = 'the-noter.sync.v1';
+const CONFLICTS_KEY = 'the-noter.conflicts.v1';
 const DISABLED_KEY = 'the-noter.sync.disabled';
 
 function note(id: string, patch: Partial<Note> = {}): Note {
@@ -52,10 +53,23 @@ const config = {
 };
 
 function handlersFor(notes: Note[]): SyncHandlers & { applyRemote: ReturnType<typeof vi.fn> } {
-  return {
-    getNotes: () => notes,
-    applyRemote: vi.fn(() => true),
-  };
+  const applyRemote = vi.fn((change: RemoteApply) => {
+    for (const incoming of change.notes) {
+      const note = { ...incoming.data, id: incoming.id } as Note;
+      const index = notes.findIndex((existing) => existing.id === note.id);
+      if (index >= 0) notes[index] = note;
+      else notes.unshift(note);
+    }
+    for (const copy of change.copies) {
+      notes.unshift({ ...copy.data, id: copy.id } as Note);
+    }
+    for (const id of change.deletes) {
+      const index = notes.findIndex((existing) => existing.id === id);
+      if (index >= 0) notes.splice(index, 1);
+    }
+    return true;
+  });
+  return { getNotes: () => notes, applyRemote };
 }
 
 function routeFetch(routes: {
@@ -66,6 +80,8 @@ function routeFetch(routes: {
   configOk?: boolean;
   asset?: (url: string, init?: RequestInit) => unknown;
   assetBlob?: (url: string) => Blob | null;
+  db?: () => unknown;
+  maintenance?: () => unknown;
 }) {
   return vi.fn(async (url: string, init?: RequestInit) => {
     const href = String(url);
@@ -73,6 +89,14 @@ function routeFetch(routes: {
       return routes.configOk === false
         ? response('', false, 404)
         : response('config' in routes ? routes.config : config);
+    }
+    // parseConfig strips trailing slashes, so the database root is fetched
+    // without one even though the fixture keeps it.
+    if (href === config.url.replace(/\/+$/, '')) {
+      return response(routes.db ? routes.db() : { doc_count: 0 });
+    }
+    if (decodeURIComponent(href).includes('meta:maintenance')) {
+      return response(routes.maintenance ? routes.maintenance() : { firstRun: 1 });
     }
     if (href.endsWith('/_bulk_docs')) {
       const body = init?.body ? JSON.parse(String(init.body)) : null;
@@ -109,6 +133,35 @@ function state(): {
   assets: string[];
 } {
   return JSON.parse(localStorage.getItem(STATE_KEY) ?? '{}');
+}
+
+function storedConflicts(): Record<string, unknown> {
+  return JSON.parse(localStorage.getItem(CONFLICTS_KEY) ?? '{}');
+}
+
+function seedConflict(
+  id: string,
+  patch: Partial<{
+    theirsRev: string;
+    theirs: Record<string, unknown> | null;
+    origin: string;
+    deletedLocally: boolean;
+  }> = {},
+): void {
+  localStorage.setItem(
+    CONFLICTS_KEY,
+    JSON.stringify({
+      [id]: {
+        id,
+        theirsRev: '2-server',
+        theirs: { id, title: 'Server copy', updatedAt: 50, blocks: [], metadata: [] },
+        origin: 'push',
+        deletedLocally: false,
+        at: 1,
+        ...patch,
+      },
+    }),
+  );
 }
 
 describe('SyncService', () => {
@@ -226,7 +279,7 @@ describe('SyncService', () => {
     expect(bulkBody.docs[0]).toMatchObject({
       _id: 'note:n_1',
       type: 'note',
-      schema: 1,
+      schema: 2,
       title: 'n_1',
     });
     expect(bulkCall[0]).toBe('http://couch:5984/notes/_bulk_docs');
@@ -256,7 +309,7 @@ describe('SyncService', () => {
                 _id: 'note:n_remote',
                 _rev: '1-r',
                 type: 'note',
-                schema: 1,
+                schema: 2,
                 title: 'Remote note',
                 updatedAt: 100,
                 createdAt: 5,
@@ -369,7 +422,7 @@ describe('SyncService', () => {
               _id: 'note:n_remote',
               _rev: '1-r',
               type: 'note',
-              schema: 1,
+              schema: 2,
               title: 'Remote note',
               updatedAt: 100,
               createdAt: 5,
@@ -433,7 +486,7 @@ describe('SyncService', () => {
     expect(state()).toMatchObject({ since: 4, dirty: ['n_1'], revs: { n_1: '1-old' } });
   });
 
-  it('turns a push conflict into a conflict copy and retries the edit', async () => {
+  it('turns a push conflict into a pending decision and freezes the note', async () => {
     seedState({ since: 0, dirty: ['n_1'] });
     const local = note('n_1');
     const handlers = handlersFor([local]);
@@ -457,13 +510,21 @@ describe('SyncService', () => {
     const service = TestBed.inject(SyncService);
     service.start(handlers);
 
-    await vi.waitFor(() => expect(handlers.applyRemote).toHaveBeenCalled());
+    await vi.waitFor(() => expect(service.conflicts()).toHaveLength(1));
 
-    const applied = handlers.applyRemote.mock.calls[0][0];
-    expect(applied.copies).toHaveLength(1);
-    expect(applied.copies[0].data['title']).toMatch(/^Server copy \(conflict .+\)$/);
-    expect(applied.copies[0].id).not.toBe('n_1');
+    expect(service.conflicts()[0]).toMatchObject({
+      id: 'n_1',
+      theirsRev: '2-server',
+      origin: 'push',
+      deletedLocally: false,
+    });
+    expect(service.conflicts()[0].theirs).toMatchObject({ id: 'n_1', title: 'Server copy' });
+    // Nothing is written to the store until the user decides, but the local
+    // edit stays queued and the server revision is remembered.
+    expect(handlers.applyRemote).not.toHaveBeenCalled();
     expect(state()).toMatchObject({ revs: { n_1: '2-server' }, dirty: ['n_1'] });
+    expect(storedConflicts()).toHaveProperty('n_1');
+    expect(service.message()).toContain('your decision');
   });
 
   it('reports a login failure as an error', async () => {
@@ -634,7 +695,7 @@ describe('SyncService', () => {
     );
   });
 
-  it('turns a vanished dirty note into a tombstone', async () => {
+  it('turns a vanished dirty note into a dated tombstone', async () => {
     seedState({ since: 0, dirty: ['n_gone'], revs: { n_gone: '1-old' } });
     const fetchMock = routeFetch({
       bulk: () => [{ id: 'note:n_gone', rev: '2-deleted' }],
@@ -648,7 +709,14 @@ describe('SyncService', () => {
     await vi.waitFor(() => expect(service.status()).toBe('synced'));
 
     const body = JSON.parse(String(callsTo(fetchMock, '/_bulk_docs')[0][1]?.body));
-    expect(body.docs).toEqual([{ _id: 'note:n_gone', _deleted: true, _rev: '1-old' }]);
+    expect(body.docs).toHaveLength(1);
+    expect(body.docs[0]).toMatchObject({
+      _id: 'note:n_gone',
+      _deleted: true,
+      type: 'note',
+      _rev: '1-old',
+    });
+    expect(typeof body.docs[0].deletedAt).toBe('number');
     expect(state()).toMatchObject({ dirty: [], removed: [] });
   });
 
@@ -723,7 +791,7 @@ describe('SyncService', () => {
     expect(state()).toMatchObject({ dirty: ['n_1'], revs: {} });
   });
 
-  it('copies remote conflicts and deletes the losing revision', async () => {
+  it('registers server conflict branches as a pending decision', async () => {
     seedState({ since: 3 });
     const fetchMock = routeFetch({
       changes: () => ({
@@ -734,6 +802,7 @@ describe('SyncService', () => {
             doc: {
               _id: 'note:n_1',
               _rev: '1-win',
+              schema: 2,
               title: 'Winning copy',
               updatedAt: 50,
               blocks: [],
@@ -746,7 +815,6 @@ describe('SyncService', () => {
       }),
       doc: (url, init) => {
         if (init?.method === 'DELETE') return response({ ok: true });
-        if (url.includes('?revs=false')) return { _rev: '3-current' };
         return {
           _id: 'note:n_1',
           _rev: '2-lose',
@@ -763,19 +831,23 @@ describe('SyncService', () => {
     const service = TestBed.inject(SyncService);
     service.start(handlers);
 
-    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+    await vi.waitFor(() => expect(service.conflicts()).toHaveLength(1));
 
+    expect(service.conflicts()[0]).toMatchObject({
+      id: 'n_1',
+      theirsRev: '2-lose',
+      origin: 'pull',
+    });
+    expect(service.conflicts()[0].theirs).toMatchObject({ id: 'n_1', title: 'Losing copy' });
+    // The winning note is applied normally; the losing revision survives on
+    // the server until the user decides.
     const applied = handlers.applyRemote.mock.calls[0][0];
-    expect(applied.copies).toHaveLength(1);
-    expect(applied.copies[0].data['title']).toMatch(/^Losing copy \(conflict .+\)$/);
-
-    const deletes = fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE');
-    expect(deletes).toHaveLength(1);
-    expect(String(deletes[0][0])).toContain('rev=2-lose');
-    expect(state()).toMatchObject({ since: 10, revs: { n_1: '3-current' } });
+    expect(applied.notes[0].data['title']).toBe('Winning copy');
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
+    expect(state()).toMatchObject({ since: 10, revs: { n_1: '1-win' } });
   });
 
-  it('keeps losing revisions when the store cannot save the remote change', async () => {
+  it('keeps the losing revision registered when the store cannot save', async () => {
     seedState({ since: 3 });
     const fetchMock = routeFetch({
       changes: () => ({
@@ -786,6 +858,7 @@ describe('SyncService', () => {
             doc: {
               _id: 'note:n_1',
               _rev: '1-win',
+              schema: 2,
               title: 'Winning copy',
               updatedAt: 50,
               _conflicts: ['2-lose'],
@@ -808,10 +881,10 @@ describe('SyncService', () => {
     const service = TestBed.inject(SyncService);
     service.start(handlers);
 
-    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+    await vi.waitFor(() => expect(service.conflicts()).toHaveLength(1));
 
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
-    expect(state()).toMatchObject({ since: 10, revs: { n_1: '1-win' } });
+    expect(storedConflicts()).toHaveProperty('n_1');
   });
 
   it('defers tombstones and documents that have pending local work', async () => {
@@ -862,7 +935,7 @@ describe('SyncService', () => {
             { id: 'note:n_missing_doc', changes: [{ rev: '1-a' }] },
             {
               id: 'note:n_doc',
-              doc: { _rev: '1-doc', title: 'From doc', updatedAt: 5, _conflicts: [42] },
+              doc: { _rev: '1-doc', schema: 2, title: 'From doc', updatedAt: 5, _conflicts: [42] },
             },
           ],
           last_seq: 'seq-2',
@@ -930,5 +1003,471 @@ describe('SyncService', () => {
 
     await vi.waitFor(() => expect(service.status()).toBe('synced'));
     expect(fetchMock.mock.calls.some(([url]) => String(url) === '/sync-config.json')).toBe(true);
+  });
+
+  it('reloads pending conflicts from storage', () => {
+    seedConflict('n_1', { origin: 'pull', theirsRev: '9-lose' });
+    localStorage.removeItem(STATE_KEY);
+
+    const service = TestBed.inject(SyncService);
+
+    expect(service.conflicts()).toHaveLength(1);
+    expect(service.conflicts()[0]).toMatchObject({
+      id: 'n_1',
+      theirsRev: '9-lose',
+      origin: 'pull',
+      deletedLocally: false,
+    });
+  });
+
+  it('holds pushes for notes with a pending conflict', async () => {
+    seedState({ since: 0, dirty: ['n_1', 'n_2'] });
+    seedConflict('n_1');
+    const fetchMock = routeFetch({
+      bulk: () => [{ id: 'note:n_2', rev: '2-b' }],
+      changes: () => ({ results: [], last_seq: 2 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = TestBed.inject(SyncService);
+    service.start(handlersFor([note('n_1'), note('n_2')]));
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    const body = JSON.parse(String(callsTo(fetchMock, '/_bulk_docs')[0][1]?.body));
+    expect(body.docs).toHaveLength(1);
+    expect(body.docs[0]['_id']).toBe('note:n_2');
+    // The conflicted note stays queued but does not count as pending work,
+    // so the retry loop stops while the user decides.
+    expect(state().dirty).toEqual(['n_1']);
+    expect(service.pendingCount()).toBe(0);
+  });
+
+  it('holds remote changes for notes with a pending conflict', async () => {
+    seedState({ since: 3 });
+    seedConflict('n_remote', { origin: 'pull', theirsRev: '2-lose' });
+    const fetchMock = routeFetch({
+      changes: () => ({
+        results: [
+          {
+            id: 'note:n_remote',
+            changes: [{ rev: '1-r' }],
+            doc: {
+              _id: 'note:n_remote',
+              _rev: '1-r',
+              schema: 2,
+              title: 'Remote',
+              updatedAt: 100,
+              blocks: [],
+              metadata: [],
+            },
+          },
+        ],
+        last_seq: 5,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const handlers = handlersFor([]);
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    expect(handlers.applyRemote).not.toHaveBeenCalled();
+    expect(state()).toMatchObject({ since: 5, revs: {} });
+  });
+
+  it('does not duplicate a conflict when the same branch is seen again', async () => {
+    seedState({ since: 3 });
+    const fetchMock = routeFetch({
+      changes: () => ({
+        results: [
+          {
+            id: 'note:n_1',
+            changes: [{ rev: '1-win' }],
+            doc: {
+              _id: 'note:n_1',
+              _rev: '1-win',
+              schema: 2,
+              title: 'Winning copy',
+              updatedAt: 50,
+              blocks: [],
+              metadata: [],
+              _conflicts: ['2-lose'],
+            },
+          },
+        ],
+        last_seq: 10,
+      }),
+      doc: () => ({
+        _id: 'note:n_1',
+        _rev: '2-lose',
+        schema: 2,
+        title: 'Losing copy',
+        updatedAt: 40,
+        blocks: [],
+        metadata: [],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const handlers = handlersFor([]);
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    await service.syncNow();
+
+    expect(service.conflicts()).toHaveLength(1);
+    const losingFetches = fetchMock.mock.calls.filter(([url]) =>
+      decodeURIComponent(String(url)).includes('rev=2-lose'),
+    );
+    expect(losingFetches).toHaveLength(1);
+  });
+
+  it('retries the local version when the user keeps this device', async () => {
+    seedState({ since: 0, dirty: ['n_1'], revs: { n_1: '2-server' } });
+    seedConflict('n_1', { theirsRev: '2-server' });
+    const fetchMock = routeFetch({
+      bulk: () => [{ id: 'note:n_1', rev: '3-local' }],
+      changes: () => ({ results: [], last_seq: 2 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const handlers = handlersFor([note('n_1', { title: 'Local copy', updatedAt: 99 })]);
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    await service.resolveConflict('n_1', 'mine');
+    await service.syncNow();
+
+    // The local edit is written against the server revision.
+    const body = JSON.parse(String(callsTo(fetchMock, '/_bulk_docs')[0][1]?.body));
+    expect(body.docs[0]).toMatchObject({ _id: 'note:n_1', _rev: '2-server', title: 'Local copy' });
+    expect(state()).toMatchObject({ dirty: [], revs: { n_1: '3-local' } });
+    expect(service.conflicts()).toHaveLength(0);
+    expect(storedConflicts()).toEqual({});
+  });
+
+  it('keeps the deletion when the user keeps this device on a delete conflict', async () => {
+    seedState({ since: 0, removed: ['n_1'], revs: { n_1: '2-server' } });
+    seedConflict('n_1', { theirsRev: '2-server', deletedLocally: true });
+    const fetchMock = routeFetch({
+      bulk: () => [{ id: 'note:n_1', rev: '3-gone' }],
+      changes: () => ({ results: [], last_seq: 2 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const handlers = handlersFor([]);
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    await service.resolveConflict('n_1', 'mine');
+    await service.syncNow();
+
+    const body = JSON.parse(String(callsTo(fetchMock, '/_bulk_docs')[0][1]?.body));
+    expect(body.docs[0]).toMatchObject({
+      _id: 'note:n_1',
+      _deleted: true,
+      _rev: '2-server',
+    });
+    expect(state()).toMatchObject({ dirty: [], removed: [] });
+    expect(storedConflicts()).toEqual({});
+  });
+
+  it('adopts the server version when the user keeps the server', async () => {
+    seedState({ since: 0, dirty: ['n_1'], revs: { n_1: '2-server' } });
+    seedConflict('n_1', {
+      theirsRev: '2-server',
+      theirs: { id: 'n_1', title: 'Server copy', updatedAt: 50, blocks: [], metadata: [] },
+    });
+    const fetchMock = routeFetch({
+      bulk: () => [{ id: 'note:n_1', rev: '3-x' }],
+      changes: () => ({ results: [], last_seq: 2 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const handlers = handlersFor([note('n_1', { title: 'Local copy', updatedAt: 99 })]);
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    await service.resolveConflict('n_1', 'theirs');
+
+    const applied = handlers.applyRemote.mock.calls[0][0];
+    expect(applied).toMatchObject({ force: true });
+    expect(applied.notes[0]).toMatchObject({ id: 'n_1', rev: '2-server' });
+    expect(handlers.getNotes()[0].title).toBe('Server copy');
+    // The server already has this version: nothing is queued for upload.
+    expect(state()).toMatchObject({ dirty: [], removed: [] });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/_bulk_docs'))).toBe(false);
+    expect(storedConflicts()).toEqual({});
+  });
+
+  it('adopts the losing branch and pushes it when the user keeps the server', async () => {
+    seedState({ since: 0, revs: { n_1: '1-win' } });
+    seedConflict('n_1', {
+      origin: 'pull',
+      theirsRev: '2-lose',
+      theirs: {
+        id: 'n_1',
+        title: 'Losing copy',
+        updatedAt: 40,
+        blocks: [],
+        metadata: [],
+      },
+    });
+    const fetchMock = routeFetch({
+      bulk: () => [{ id: 'note:n_1', rev: '3-kept' }],
+      changes: () => ({ results: [], last_seq: 2 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const handlers = handlersFor([note('n_1', { title: 'Winning copy', updatedAt: 50 })]);
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    await service.resolveConflict('n_1', 'theirs');
+    await service.syncNow();
+
+    // The losing revision leaves the server only after the decision.
+    const deletes = fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE');
+    expect(deletes).toHaveLength(1);
+    expect(String(deletes[0][0])).toContain('rev=2-lose');
+
+    // The adopted version overwrites the winner.
+    const body = JSON.parse(String(callsTo(fetchMock, '/_bulk_docs')[0][1]?.body));
+    expect(body.docs[0]).toMatchObject({ _id: 'note:n_1', _rev: '1-win', title: 'Losing copy' });
+    expect(handlers.getNotes()[0].title).toBe('Losing copy');
+    expect(storedConflicts()).toEqual({});
+  });
+
+  it('keeps the winning version when the user keeps this device', async () => {
+    seedState({ since: 0, revs: { n_1: '1-win' } });
+    seedConflict('n_1', {
+      origin: 'pull',
+      theirsRev: '2-lose',
+      theirs: {
+        id: 'n_1',
+        title: 'Losing copy',
+        updatedAt: 40,
+        blocks: [],
+        metadata: [],
+      },
+    });
+    const fetchMock = routeFetch({ changes: () => ({ results: [], last_seq: 2 }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const handlers = handlersFor([note('n_1', { title: 'Winning copy', updatedAt: 50 })]);
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    await service.resolveConflict('n_1', 'mine');
+
+    // The local copy already matches the winning revision, so nothing is
+    // pushed; only the losing revision is dropped from the server.
+    expect(state()).toMatchObject({ dirty: [], removed: [] });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/_bulk_docs'))).toBe(false);
+    const deletes = fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE');
+    expect(deletes).toHaveLength(1);
+    expect(String(deletes[0][0])).toContain('rev=2-lose');
+    expect(storedConflicts()).toEqual({});
+  });
+
+  it('keeps both versions when the user asks for both', async () => {
+    seedState({ since: 0, dirty: ['n_1'], revs: { n_1: '2-server' } });
+    seedConflict('n_1', {
+      theirsRev: '2-server',
+      theirs: {
+        id: 'n_1',
+        title: 'Server copy',
+        updatedAt: 50,
+        blocks: [{ id: 'b_1', type: 'text', text: 'server text' }],
+        metadata: [],
+      },
+    });
+    const fetchMock = routeFetch({
+      bulk: () => [{ id: 'note:n_1', rev: '3-local' }],
+      changes: () => ({ results: [], last_seq: 2 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const handlers = handlersFor([note('n_1', { title: 'Local copy', updatedAt: 99 })]);
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    await service.resolveConflict('n_1', 'both');
+    await service.syncNow();
+
+    // The server version survives as its own note.
+    expect(handlers.getNotes()).toHaveLength(2);
+    const copy = handlers.getNotes().find((item) => item.id !== 'n_1')!;
+    expect(copy.title).toMatch(/^Server copy \(conflict .+\)$/);
+    // The local version is pushed against the server revision.
+    const body = JSON.parse(String(callsTo(fetchMock, '/_bulk_docs')[0][1]?.body));
+    expect(body.docs[0]).toMatchObject({ _id: 'note:n_1', _rev: '2-server', title: 'Local copy' });
+    expect(storedConflicts()).toEqual({});
+  });
+
+  it('migrates legacy documents on pull and pushes the upgraded version', async () => {
+    seedState({ since: 3 });
+    let pulls = 0;
+    const fetchMock = routeFetch({
+      bulk: (raw) => {
+        const body = raw as { docs: Array<{ _id: string }> };
+        return body.docs.map((doc) => ({ id: doc._id, rev: '2-mig' }));
+      },
+      changes: () => {
+        pulls += 1;
+        return pulls === 1
+          ? {
+              results: [
+                {
+                  id: 'note:n_legacy',
+                  changes: [{ rev: '1-old' }],
+                  doc: {
+                    _id: 'note:n_legacy',
+                    _rev: '1-old',
+                    type: 'note',
+                    title: 'Legacy doc',
+                    updatedAt: 100,
+                    createdAt: 5,
+                    blocks: [],
+                    metadata: [{ id: 'm_1', key: 'Tag', value: 'x' }],
+                  },
+                },
+              ],
+              last_seq: 4,
+            }
+          : { results: [], last_seq: 4 };
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const handlers = handlersFor([]);
+    const service = TestBed.inject(SyncService);
+    service.start(handlers);
+
+    // The pulled note lands with typed metadata and is queued for re-upload.
+    await vi.waitFor(() => expect(handlers.applyRemote).toHaveBeenCalled());
+    const applied = handlers.applyRemote.mock.calls[0][0];
+    expect(applied.notes[0].data['metadata']).toEqual([
+      { id: 'm_1', key: 'Tag', value: 'x', type: 'text', options: [] },
+    ]);
+    expect(state().dirty).toContain('n_legacy');
+
+    await service.syncNow();
+
+    const body = JSON.parse(String(callsTo(fetchMock, '/_bulk_docs')[0][1]?.body));
+    expect(body.docs[0]).toMatchObject({ _id: 'note:n_legacy', _rev: '1-old', schema: 2 });
+    expect(body.docs[0]['metadata']).toEqual([
+      { id: 'm_1', key: 'Tag', value: 'x', type: 'text', options: [] },
+    ]);
+    expect(state()).toMatchObject({ dirty: [], revs: { n_legacy: '2-mig' } });
+    expect(service.status()).toBe('synced');
+  });
+
+  it('runs a full pass on demand and reads the diagnostics', async () => {
+    seedState({ since: 0, dirty: ['n_1'] });
+    const fetchMock = routeFetch({
+      bulk: () => [{ id: 'note:n_1', rev: '1-a' }],
+      changes: () => ({ results: [], last_seq: 2 }),
+      db: () => ({ doc_count: 7, doc_del_count: 2, purge_seq: '3-g', compact_running: false }),
+      maintenance: () => ({
+        firstRun: 10,
+        lastCompaction: 20,
+        lastPurge: 30,
+        purged: 4,
+        intervalSeconds: 3600,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = TestBed.inject(SyncService);
+    service.start(handlersFor([note('n_1')]));
+
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    await service.syncNow();
+
+    expect(service.status()).toBe('synced');
+    expect(service.lastSyncedAt()).not.toBeNull();
+    expect(service.diagnostics()).toMatchObject({
+      docCount: 7,
+      deletedCount: 2,
+      purgeSeq: '3-g',
+      compactRunning: false,
+    });
+    expect(service.diagnostics()!.maintenance).toMatchObject({
+      lastCompaction: 20,
+      lastPurge: 30,
+      purged: 4,
+      intervalSeconds: 3600,
+    });
+  });
+
+  it('tolerates a missing maintenance document', async () => {
+    seedState({ since: 0 });
+    vi.stubGlobal(
+      'fetch',
+      routeFetch({
+        changes: () => ({ results: [], last_seq: 1 }),
+        db: () => ({ doc_count: 3, compact_running: true }),
+        maintenance: () => {
+          throw new Error('missing');
+        },
+      }),
+    );
+
+    const service = TestBed.inject(SyncService);
+    service.start(handlersFor([]));
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    await service.syncNow();
+
+    expect(service.diagnostics()).toMatchObject({ docCount: 3, compactRunning: true });
+    expect(service.diagnostics()!.maintenance).toBeNull();
+  });
+
+  it('keeps the last diagnostics when the counters cannot be read', async () => {
+    seedState({ since: 0 });
+    vi.stubGlobal(
+      'fetch',
+      routeFetch({
+        changes: () => ({ results: [], last_seq: 1 }),
+        db: () => ({ doc_count: 5, doc_del_count: 1 }),
+        maintenance: () => ({ lastPurge: 9 }),
+      }),
+    );
+
+    const service = TestBed.inject(SyncService);
+    service.start(handlersFor([]));
+    await vi.waitFor(() => expect(service.status()).toBe('synced'));
+
+    await service.syncNow();
+    expect(service.diagnostics()).toMatchObject({ docCount: 5 });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('network down');
+      }),
+    );
+    await service.refreshDiagnostics();
+
+    expect(service.diagnostics()).toMatchObject({ docCount: 5 });
   });
 });

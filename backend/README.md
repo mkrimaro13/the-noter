@@ -14,6 +14,10 @@ account system** beyond one restricted database user.
 - A one-shot **`init` service** that creates the `thenoter` database, the least-privilege `thenoter`
   app user, and the database `_security` rules. It runs after CouchDB is healthy and before the
   frontend starts, and is safe to repeat.
+- A **`maintenance` service** that purges aged delete tombstones and requests compaction on a
+  schedule (`backend/scripts/maintenance.mjs`). It runs with the admin credentials because only
+  admins may call `_purge` and `_compact`, and it records its progress in the `meta:maintenance`
+  document that the app shows as diagnostics.
 - Published on `127.0.0.1:5984` only, so other devices cannot reach it yet.
 
 ```
@@ -23,7 +27,9 @@ backend/
 ├── config/
 │   └── local.ini             single-node, CORS, document size
 ├── scripts/
-│   └── init-couchdb.sh       database, app user, security rules
+│   ├── init-couchdb.sh       database, app user, security rules
+│   ├── maintenance.mjs       tombstone purge and compaction schedule
+│   └── maintenance.test.mjs  node --test suite for the schedule
 ├── data/                     CouchDB database files (git-ignored)
 ├── README.md                 this file
 └── REPLICATION.md            document and sync design, verification recipe
@@ -36,8 +42,9 @@ From the repository root:
 ```bash
 cp .env.example .env          # replace both passwords
 docker compose up -d --build
-docker compose ps -a          # backend healthy, init exited 0, frontend up
+docker compose ps -a          # backend healthy, init exited 0, maintenance and frontend up
 docker compose logs init      # "CouchDB ready: database 'thenoter', app user 'thenoter'."
+docker compose logs maintenance
 ```
 
 Verify:
@@ -69,6 +76,7 @@ Useful commands:
 ```bash
 docker compose logs -f backend
 docker compose logs init
+docker compose logs maintenance
 docker compose stop backend
 docker compose down            # keeps backend/data
 docker compose run --rm init   # re-run the bootstrap explicitly
@@ -192,17 +200,43 @@ security rules.
 
 **How** — Declared in `Dockerfile` and repeated in Compose. `/_up` answers `{"status":"ok"}`.
 
+### 9. Scheduled maintenance
+
+**What** — The `maintenance` Compose service runs `backend/scripts/maintenance.mjs` every
+`MAINTENANCE_INTERVAL_SECONDS` (default 6 h). Each cycle purges note tombstones older than
+`MAINTENANCE_RETENTION_DAYS` (default 30) and requests database compaction, recording its progress
+in the `meta:maintenance` document.
+
+**Why** — Deleted documents keep a tombstone and every edit keeps old revisions until compaction,
+so an untouched database only grows. `_purge` and `_compact` require admin credentials, which the
+browser never has, so the schedule runs server-side in the compose network.
+
+**How** — The service uses the stock `node:22-alpine` image with the script bind-mounted read-only,
+waits for `/_up`, then runs one cycle per interval (a failed cycle is logged and retried on the next
+one). Tombstones written before the `deletedAt` field existed are only purged after
+`firstRun + retention`, so enabling the schedule never deletes old history immediately. The app user
+can read `meta:maintenance` (the frontend diagnostics popover does) but only this service updates
+it. Details and the verification recipe are in
+[REPLICATION.md, section 14](REPLICATION.md#14-scheduled-maintenance-compaction-and-tombstone-purge);
+the cycle is covered by `node --test backend/scripts/maintenance.test.mjs`.
+
 ## The synced data
 
 - Database: `thenoter` (configurable through `COUCHDB_DB`).
-- One document per note, `_id: "note:<local note id>"`, with `type: "note"` and `schema: 1`.
-- Deletes are tombstones (`_deleted: true`); they keep traveling through `_changes`.
+- One document per note, `_id: "note:<local note id>"`, with `type: "note"` and the current
+  `schema` version (2). Documents without a readable `schema` are treated as version 1 and migrated
+  on pull.
+- Deletes are dated tombstones (`_deleted: true` with `deletedAt`); they keep traveling through
+  `_changes` until the maintenance schedule purges them.
 - CouchDB revisions are stored by the browser per note, so `409 Conflict` is detected instead of
   silently overwriting another device.
-- Conflict revisions are copied into separate notes before the losing revision is deleted from the
-  server.
+- A conflict freezes the note as a pending decision (keep this device, keep the server, or keep
+  both) instead of copying anything automatically; the losing server revision is only deleted after
+  the user decides.
+- Image bytes live in `asset:<sha256>` documents as attachments; note bodies only reference the
+  hash.
 
-The exact document shape, push/pull order, and conflict handling are in
+The exact document shape, push/pull order, conflict rules, and the maintenance schedule are in
 [REPLICATION.md](REPLICATION.md).
 
 ## Configuration reference
@@ -221,14 +255,16 @@ The exact document shape, push/pull order, and conflict handling are in
 
 Compose environment:
 
-| Variable               | Service       | Notes                                               |
-| ---------------------- | ------------- | --------------------------------------------------- |
-| `COUCHDB_USER`         | backend, init | admin name; must match the initialized server       |
-| `COUCHDB_PASSWORD`     | backend, init | admin password; first start only for CouchDB itself |
-| `COUCHDB_DB`           | init          | database name, default `thenoter`                   |
-| `COUCHDB_APP_USER`     | init          | app user name, default `thenoter`                   |
-| `COUCHDB_APP_PASSWORD` | init          | app password; also passed to the frontend           |
-| `SYNC_URL`             | frontend      | database URL rendered into `/sync-config.json`      |
+| Variable                        | Service               | Notes                                               |
+| ------------------------------- | -------------------- | --------------------------------------------------- |
+| `COUCHDB_USER`                  | backend, init, maintenance | admin name; must match the initialized server |
+| `COUCHDB_PASSWORD`              | backend, init, maintenance | admin password; first start only for CouchDB itself |
+| `COUCHDB_DB`                    | init, maintenance    | database name, default `thenoter`                   |
+| `COUCHDB_APP_USER`              | init                 | app user name, default `thenoter`                   |
+| `COUCHDB_APP_PASSWORD`          | init                 | app password; also passed to the frontend           |
+| `SYNC_URL`                      | frontend             | database URL rendered into `/sync-config.json`      |
+| `MAINTENANCE_INTERVAL_SECONDS`  | maintenance          | seconds between cycles, default `21600` (6 h)      |
+| `MAINTENANCE_RETENTION_DAYS`    | maintenance          | days a tombstone is kept, default `30`             |
 
 ## Operations
 
@@ -315,8 +351,8 @@ The browser stores its `_changes` cursor, known revisions, and pending ids in
 - After **deleting** the database, remove that key and reload the app. Notes in `localStorage` are
   then treated as unsynced and pushed into the fresh database.
 - After **restoring an older backup**, decide which side wins before doing that: clearing the key
-  pushes every local note and may create conflict copies against the restored server. Clearing all
-  site data pulls the server copy instead.
+  pushes every local note and may create conflict decisions against the restored server. Clearing
+  all site data pulls the server copy instead.
 
 ## Troubleshooting
 
@@ -331,6 +367,7 @@ The browser stores its `_changes` cursor, known revisions, and pending ids in
 | Login fails after editing `.env`        | The admin password is only applied on first init. Rotate it manually.                                                     |
 | Container restarts in a loop            | `docker compose logs backend`; usually a config or permission error.                                                      |
 | Deleted notes come back                 | The client is replaying stale state. Check the tombstone and the sync cursor; see the reset/restore notes above.          |
+| `maintenance` logs `cycle failed`       | A purge/compact call was rejected. Check `docker compose logs maintenance` and the admin credentials.                    |
 
 ## Security notes
 
@@ -353,7 +390,7 @@ The browser stores its `_changes` cursor, known revisions, and pending ids in
 - [x] Add a non-admin app user for the frontend.
 - [x] Enable CORS for the app origins.
 - [x] Local-first push/pull sync with revisions, tombstones, and offline retries.
-- [x] Conflict copies, including server-side `_conflicts`.
-- [ ] Images as CouchDB attachments instead of inline data URLs.
-- [ ] Compaction and tombstone purge schedule.
+- [x] Conflict decisions with a sidebar UI, including server-side `_conflicts`.
+- [x] Images as CouchDB attachments instead of inline data URLs.
+- [x] Compaction and tombstone purge schedule.
 - [ ] TLS, a stronger credential model, and Tailscale access from other devices.

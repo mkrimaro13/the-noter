@@ -953,7 +953,8 @@ export class NoteStore {
 
   /**
    * Applies notes and tombstones pulled from CouchDB. A remote document never
-   * replaces a newer local edit, and conflict copies are queued for upload.
+   * replaces a newer local edit, conflict copies are queued for upload, and a
+   * forced apply (a conflict resolution) replaces the local copy outright.
    */
   private applyRemote(change: RemoteApply): boolean {
     if (change.notes.length === 0 && change.deletes.length === 0 && change.copies.length === 0) {
@@ -967,12 +968,17 @@ export class NoteStore {
         const note = normalizeNote({ ...incoming.data, id: incoming.id });
         if (!note) continue;
         const local = next.get(note.id);
-        if (local && local.updatedAt > note.updatedAt) continue;
-        next.set(note.id, {
-          ...note,
-          // Keep the local clock monotonic even if the server clock is behind.
-          updatedAt: Math.max(note.updatedAt, local?.updatedAt ?? 0),
-        });
+        if (!change.force && local && local.updatedAt > note.updatedAt) continue;
+        next.set(
+          note.id,
+          change.force
+            ? note
+            : {
+                ...note,
+                // Keep the local clock monotonic even if the server clock is behind.
+                updatedAt: Math.max(note.updatedAt, local?.updatedAt ?? 0),
+              },
+        );
       }
 
       for (const id of change.deletes) next.delete(id);

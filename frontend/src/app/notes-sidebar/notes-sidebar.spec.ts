@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Note, createBlock, createNote } from '../models';
 import { NoteStore } from '../note-store';
-import { SyncService, SyncStatus } from '../sync';
+import { NoteConflict, SyncDiagnostics, SyncService, SyncStatus } from '../sync';
 import { NotesSidebar } from './notes-sidebar';
 
 const NOTES_KEY = 'the-noter.notes.v1';
@@ -22,10 +22,17 @@ function fakeSync() {
   return {
     status: signal<SyncStatus>('idle'),
     message: signal(''),
+    lastSyncedAt: signal<number | null>(null),
+    conflicts: signal<NoteConflict[]>([]),
+    pendingCount: signal(0),
+    diagnostics: signal<SyncDiagnostics | null>(null),
     start: vi.fn(),
     markDirty: vi.fn(),
     markDeleted: vi.fn(),
     notifyPersisted: vi.fn(),
+    syncNow: vi.fn(async () => {}),
+    refreshDiagnostics: vi.fn(async () => {}),
+    resolveConflict: vi.fn(async () => {}),
   };
 }
 
@@ -390,5 +397,160 @@ describe('NotesSidebar', () => {
 
     expect(store.trashedNotes()).toHaveLength(0);
     expect(store.total()).toBe(0);
+  });
+
+  it('lists pending conflicts and applies the chosen decision', () => {
+    const local = note('n_1', {
+      title: 'Local copy',
+      blocks: [createBlock('text', { columns: ['Local body'] })],
+    });
+    const { fixture, sync } = setup([local]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    sync.conflicts.set([
+      {
+        id: 'n_1',
+        theirsRev: '2-server',
+        theirs: {
+          id: 'n_1',
+          title: 'Server copy',
+          updatedAt: 50,
+          blocks: [createBlock('text', { columns: ['Server body'] })],
+          metadata: [],
+        },
+        origin: 'push',
+        deletedLocally: false,
+        at: 1,
+      },
+    ]);
+    fixture.detectChanges();
+
+    expect(element.querySelector('.conflicts-toggle')?.textContent).toContain('Sync conflicts');
+    expect(element.querySelector('.conflicts-count')?.textContent?.trim()).toBe('1');
+
+    element.querySelector<HTMLButtonElement>('.conflicts-toggle')!.click();
+    fixture.detectChanges();
+
+    expect(element.querySelector('.conflict-card-title')?.textContent).toContain('Local copy');
+    const labels = Array.from(element.querySelectorAll('.conflict-side-label')).map(
+      (node) => node.textContent?.trim() ?? '',
+    );
+    expect(labels).toEqual(['This device', 'Server']);
+    const previews = Array.from(element.querySelectorAll('.conflict-side-preview')).map(
+      (node) => node.textContent?.trim() ?? '',
+    );
+    expect(previews).toEqual(['Local body', 'Server body']);
+
+    const actions = Array.from(element.querySelectorAll<HTMLButtonElement>('.conflict-action'));
+    actions[1].click();
+    expect(sync.resolveConflict).toHaveBeenCalledWith('n_1', 'theirs');
+
+    // The section leaves once the decision has been applied.
+    sync.conflicts.set([]);
+    fixture.detectChanges();
+    expect(element.querySelector('.conflicts')).toBeNull();
+  });
+
+  it('marks conflicts about notes deleted on this device', () => {
+    const { fixture, store, sync } = setup([note('n_1', { title: 'Trashed copy' })]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    store.deleteNote('n_1');
+    sync.conflicts.set([
+      {
+        id: 'n_1',
+        theirsRev: '2-server',
+        theirs: {
+          id: 'n_1',
+          title: 'Server copy',
+          updatedAt: 50,
+          blocks: [],
+          metadata: [],
+        },
+        origin: 'push',
+        deletedLocally: true,
+        at: 1,
+      },
+      {
+        id: 'n_missing',
+        theirsRev: '2-server',
+        theirs: null,
+        origin: 'push',
+        deletedLocally: false,
+        at: 1,
+      },
+    ]);
+    fixture.detectChanges();
+    element.querySelector<HTMLButtonElement>('.conflicts-toggle')!.click();
+    fixture.detectChanges();
+
+    const tags = Array.from(element.querySelectorAll('.conflict-tag')).map(
+      (node) => node.textContent?.trim() ?? '',
+    );
+    expect(tags).toEqual(['in trash', 'deleted here']);
+
+    const cards = element.querySelectorAll('.conflict-card');
+    // A note that is gone entirely shows the deleted placeholder.
+    const missing = Array.from(cards[cards.length - 1].querySelectorAll('.conflict-side'));
+    expect(missing[0].textContent).toContain('This version no longer exists.');
+
+    const actions = Array.from(cards[0].querySelectorAll<HTMLButtonElement>('.conflict-action'));
+    actions[2].click();
+    expect(sync.resolveConflict).toHaveBeenCalledWith('n_1', 'both');
+  });
+
+  it('runs a manual sync from the footer', () => {
+    const { fixture, sync } = setup([]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    const button = element.querySelector<HTMLButtonElement>('.sync-now')!;
+    expect(button.disabled).toBe(false);
+    button.click();
+    expect(sync.syncNow).toHaveBeenCalledTimes(1);
+
+    sync.status.set('syncing');
+    fixture.detectChanges();
+    expect(element.querySelector<HTMLButtonElement>('.sync-now')!.disabled).toBe(true);
+  });
+
+  it('shows server diagnostics in the popover and closes it with Escape', () => {
+    const { fixture, sync } = setup([]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    sync.lastSyncedAt.set(Date.now() - 60_000);
+    sync.pendingCount.set(2);
+    sync.diagnostics.set({
+      at: 1,
+      docCount: 12,
+      deletedCount: 3,
+      purgeSeq: '4-p',
+      compactRunning: false,
+      maintenance: {
+        firstRun: 1,
+        lastCompaction: 2,
+        lastPurge: 3,
+        purged: 5,
+        intervalSeconds: 3600,
+      },
+    });
+    fixture.detectChanges();
+
+    element.querySelector<HTMLButtonElement>('.save-state')!.click();
+    fixture.detectChanges();
+
+    expect(sync.refreshDiagnostics).toHaveBeenCalledTimes(1);
+    expect(element.querySelector('.sync-popover')?.textContent).toContain('Server documents');
+    const rows = Array.from(element.querySelectorAll('.sync-popover-row')).map(
+      (node) => node.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+    );
+    expect(rows.some((row) => row.includes('Server documents') && row.includes('12'))).toBe(true);
+    expect(rows.some((row) => row.includes('Deleted on server') && row.includes('3'))).toBe(true);
+    expect(rows.some((row) => row.includes('Compaction') && row.includes('Idle'))).toBe(true);
+    expect(rows.some((row) => row.includes('Tombstones purged') && row.includes('5'))).toBe(true);
+    expect(rows.some((row) => row.includes('Waiting') && row.includes('2'))).toBe(true);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(element.querySelector('.sync-popover')).toBeNull();
   });
 });

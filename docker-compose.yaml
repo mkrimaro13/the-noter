@@ -43,6 +43,31 @@ services:
       backend:
         condition: service_healthy
 
+  # Scheduled CouchDB maintenance: purges old note tombstones and requests
+  # compaction every MAINTENANCE_INTERVAL_SECONDS. Needs the admin
+  # credentials because the app user cannot call _purge or _compact. The
+  # script is bind-mounted read-only and records its progress in the
+  # meta:maintenance document, which the frontend shows as diagnostics.
+  maintenance:
+    image: node:22-alpine
+    container_name: the-noter-maintenance
+    restart: unless-stopped
+    command: ["node", "/app/maintenance.mjs"]
+    volumes:
+      - ./backend/scripts/maintenance.mjs:/app/maintenance.mjs:ro
+    environment:
+      COUCHDB_URL: http://backend:5984
+      COUCHDB_USER: ${COUCHDB_USER:-admin}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:-thenoter-local}
+      COUCHDB_DB: ${COUCHDB_DB:-thenoter}
+      MAINTENANCE_INTERVAL_SECONDS: ${MAINTENANCE_INTERVAL_SECONDS:-21600}
+      MAINTENANCE_RETENTION_DAYS: ${MAINTENANCE_RETENTION_DAYS:-30}
+    depends_on:
+      backend:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+
   frontend:
     build:
       context: ./frontend

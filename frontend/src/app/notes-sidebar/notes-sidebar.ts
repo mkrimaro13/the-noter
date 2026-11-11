@@ -12,7 +12,8 @@ import {
 } from '@angular/core';
 import { Note, NoteTreeItem, isImageIcon } from '../models';
 import { NoteStore } from '../note-store';
-import { SyncService } from '../sync';
+import { ConflictChoice, SyncService } from '../sync';
+import { conflictPreview } from '../conflict-preview';
 import { blockCountLabel, relativeTime } from '../format';
 import { AssetSrc } from '../ui/asset-src';
 import { Icon } from '../ui/icon';
@@ -24,6 +25,13 @@ interface SidebarRow {
   depth: number;
   hasChildren: boolean;
   expanded: boolean;
+}
+
+interface ConflictRow {
+  conflict: { id: string; origin: string; deletedLocally: boolean };
+  mine: ReturnType<typeof conflictPreview>;
+  theirs: ReturnType<typeof conflictPreview>;
+  inTrash: boolean;
 }
 
 @Component({
@@ -45,10 +53,13 @@ export class NotesSidebar {
   protected readonly store = inject(NoteStore);
   protected readonly sync = inject(SyncService);
   protected readonly isImageIcon = isImageIcon;
+  protected readonly relativeTime = relativeTime;
   protected readonly confirmingDelete = signal<string | null>(null);
   protected readonly confirmingPurge = signal<string | null>(null);
   protected readonly confirmingEmpty = signal(false);
   protected readonly trashOpen = signal(false);
+  protected readonly conflictsOpen = signal(false);
+  protected readonly diagnosticsOpen = signal(false);
   protected readonly movingNote = signal<string | null>(null);
   protected readonly collapsedNotes = signal<ReadonlySet<string>>(loadCollapsed());
   protected readonly backupStatus = signal<string | null>(null);
@@ -105,6 +116,82 @@ export class NotesSidebar {
     return rows;
   });
 
+  /**
+   * Both sides of every pending sync conflict: the live local note (or its
+   * absence) and the version stored when the conflict was detected.
+   */
+  protected readonly conflictRows = computed<ConflictRow[]>(() =>
+    this.sync.conflicts().map((conflict) => {
+      const local =
+        this.store.notes().find((note) => note.id === conflict.id) ??
+        this.store.trashedNotes().find((note) => note.id === conflict.id) ??
+        null;
+      return {
+        conflict,
+        mine: conflictPreview(local),
+        theirs: conflictPreview(conflict.theirs),
+        inTrash: local !== null && local.deletedAt !== null,
+      };
+    }),
+  );
+
+  /** Rows for the sync diagnostics popover, shown when they are available. */
+  protected readonly diagnosticRows = computed<Array<{ label: string; value: string }>>(() => {
+    const rows: Array<{ label: string; value: string }> = [
+      { label: 'Status', value: this.saveLabel() },
+      {
+        label: 'Last sync',
+        value: this.sync.lastSyncedAt() ? relativeTime(this.sync.lastSyncedAt()!) : 'Not yet',
+      },
+      {
+        label: 'Waiting',
+        value: this.sync.pendingCount() > 0 ? `${this.sync.pendingCount()} change(s)` : 'Nothing',
+      },
+    ];
+
+    const diagnostics = this.sync.diagnostics();
+    if (diagnostics) {
+      rows.push(
+        {
+          label: 'Server documents',
+          value: diagnostics.docCount === null ? '—' : String(diagnostics.docCount),
+        },
+        {
+          label: 'Deleted on server',
+          value: diagnostics.deletedCount === null ? '—' : String(diagnostics.deletedCount),
+        },
+        {
+          label: 'Compaction',
+          value:
+            diagnostics.compactRunning === null
+              ? '—'
+              : diagnostics.compactRunning
+                ? 'Running'
+                : 'Idle',
+        },
+      );
+      const maintenance = diagnostics.maintenance;
+      if (maintenance) {
+        rows.push(
+          {
+            label: 'Last compaction',
+            value: maintenance.lastCompaction ? relativeTime(maintenance.lastCompaction) : 'Never',
+          },
+          {
+            label: 'Last purge',
+            value: maintenance.lastPurge ? relativeTime(maintenance.lastPurge) : 'Never',
+          },
+          {
+            label: 'Tombstones purged',
+            value: maintenance.purged === null ? '—' : String(maintenance.purged),
+          },
+        );
+      }
+    }
+
+    return rows;
+  });
+
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   private readonly expandButton = viewChild<ElementRef<HTMLButtonElement>>('expandButton');
 
@@ -122,6 +209,11 @@ export class NotesSidebar {
         this.confirmingPurge.set(null);
         this.confirmingEmpty.set(false);
       }
+    });
+
+    // Nothing to decide means the conflicts section has nothing to show.
+    effect(() => {
+      if (this.sync.conflicts().length === 0) this.conflictsOpen.set(false);
     });
 
     effect(() => {
@@ -203,6 +295,26 @@ export class NotesSidebar {
     this.confirmingPurge.set(null);
     this.confirmingEmpty.set(false);
     this.movingNote.set(null);
+    this.diagnosticsOpen.set(false);
+  }
+
+  protected toggleConflicts(): void {
+    this.conflictsOpen.update((open) => !open);
+  }
+
+  /** Applies one of the three decisions for a pending conflict. */
+  protected resolveConflict(row: ConflictRow, choice: ConflictChoice): void {
+    void this.sync.resolveConflict(row.conflict.id, choice);
+  }
+
+  /** Runs a full sync pass and refreshes the server counters for the popover. */
+  protected syncNow(): void {
+    void this.sync.syncNow();
+  }
+
+  protected toggleDiagnostics(): void {
+    this.diagnosticsOpen.update((open) => !open);
+    if (this.diagnosticsOpen()) void this.sync.refreshDiagnostics();
   }
 
   protected toggleTrash(): void {

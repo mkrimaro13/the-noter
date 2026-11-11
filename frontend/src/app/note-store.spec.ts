@@ -1,6 +1,14 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SyncService, type RemoteApply, type RemoteNoteDoc } from './sync';
+import {
+  NoteConflict,
+  SyncDiagnostics,
+  SyncService,
+  SyncStatus,
+  type RemoteApply,
+  type RemoteNoteDoc,
+} from './sync';
 import { Note, NoteBlock, createBlock, createImageColumn, createNote } from './models';
 import { NoteStore } from './note-store';
 
@@ -25,10 +33,19 @@ function remoteHandler(sync: ReturnType<typeof fakeSync>): (change: RemoteApply)
 
 function fakeSync() {
   return {
+    status: signal<SyncStatus>('idle'),
+    message: signal(''),
+    lastSyncedAt: signal<number | null>(null),
+    conflicts: signal<NoteConflict[]>([]),
+    pendingCount: signal(0),
+    diagnostics: signal<SyncDiagnostics | null>(null),
     start: vi.fn(),
     markDirty: vi.fn(),
     markDeleted: vi.fn(),
     notifyPersisted: vi.fn(),
+    syncNow: vi.fn(async () => {}),
+    refreshDiagnostics: vi.fn(async () => {}),
+    resolveConflict: vi.fn(async () => {}),
   };
 }
 
