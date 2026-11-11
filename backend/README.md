@@ -224,8 +224,8 @@ the cycle is covered by `node --test backend/scripts/maintenance.test.mjs`.
 
 - Database: `thenoter` (configurable through `COUCHDB_DB`).
 - One document per note, `_id: "note:<local note id>"`, with `type: "note"` and the current
-  `schema` version (2). Documents without a readable `schema` are treated as version 1 and migrated
-  on pull.
+  `schema` version (3). Documents without a readable `schema` are treated as version 1 and migrated
+  on pull (version 2 documents are upgraded with the `favorite` backfill).
 - Deletes are dated tombstones (`_deleted: true` with `deletedAt`); they keep traveling through
   `_changes` until the maintenance schedule purges them.
 - CouchDB revisions are stored by the browser per note, so `409 Conflict` is detected instead of

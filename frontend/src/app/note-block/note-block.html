@@ -55,7 +55,7 @@
               ></textarea>
               @if (hasMarkup(column)) {
                 <div class="field-preview text-preview" aria-hidden="true">
-                  <app-markdown-inline [text]="column" />
+                  <app-markdown-inline [text]="column" [highlight]="highlight()" />
                 </div>
               }
             </div>
@@ -85,7 +85,7 @@
               [attr.data-level]="block().level"
               aria-hidden="true"
             >
-              <app-markdown-inline [text]="block().text" />
+              <app-markdown-inline [text]="block().text" [highlight]="highlight()" />
             </div>
           }
         </div>
@@ -113,7 +113,7 @@
                 />
                 @if (hasMarkup(item)) {
                   <div class="field-preview list-preview" aria-hidden="true">
-                    <app-markdown-inline [text]="item" />
+                    <app-markdown-inline [text]="item" [highlight]="highlight()" />
                   </div>
                 }
               </div>

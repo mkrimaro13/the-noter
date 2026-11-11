@@ -59,11 +59,12 @@ two devices never conflicts. One document for the whole notebook would make ever
   "_id": "note:n_1729000000000_ab12",
   "_rev": "3-4f2a…",
   "type": "note",
-  "schema": 2,
+  "schema": 3,
   "title": "Reading list",
   "icon": "📚",
   "cover": "",
   "parentId": null,
+  "favorite": false,
   "metadata": [{ "id": "m_1", "key": "Status", "value": "active", "type": "text", "options": [] }],
   "blocks": [
     {
@@ -86,11 +87,11 @@ Rules:
 - `parentId` points at another note's plain id, not at its `_id`.
 - Block ids stay stable inside the array. Conflict handling still works at note level, not block
   level.
-- `schema` is the document version. Every pushed note carries the current version (2). Documents
-  without a readable `schema`, or with version 1, are migrated when they are pulled: missing
-  metadata fields are filled with typed defaults and the upgraded note is queued for re-push. A
-  document with a newer version than the app knows is left untouched. See
-  `frontend/src/app/schema.ts`.
+- `schema` is the document version. Every pushed note carries the current version (3). Documents
+  without a readable `schema`, or with version 1 or 2, are migrated when they are pulled: missing
+  metadata fields are filled with typed defaults, the `favorite` flag is backfilled with `false`,
+  and the upgraded note is queued for re-push. A document with a newer version than the app knows
+  is left untouched. See `frontend/src/app/schema.ts`.
 - Image bytes live in `asset:<hash>` documents as attachments, not in the note body. Blocks only
   reference the hash. See [section 10](#10-images-are-content-addressed-attachments).
 
@@ -391,7 +392,7 @@ APP="-u $COUCHDB_APP_USER:$COUCHDB_APP_PASSWORD"
 # Create a note.
 curl -s $APP -X PUT "http://127.0.0.1:5984/thenoter/note:test-1" \
   -H 'Content-Type: application/json' \
-  -d '{"type":"note","schema":2,"title":"Test","parentId":null,
+  -d '{"type":"note","schema":3,"title":"Test","parentId":null,
        "blocks":[],"metadata":[],"createdAt":0,"updatedAt":0}'
 
 # Read it and note the _rev.
@@ -400,7 +401,7 @@ curl -s $APP http://127.0.0.1:5984/thenoter/note:test-1
 # Update with that revision (a stale revision returns 409).
 curl -s $APP -X PUT "http://127.0.0.1:5984/thenoter/note:test-1" \
   -H 'Content-Type: application/json' \
-  -d '{"_rev":"1-…","type":"note","schema":2,"title":"Test edited",
+  -d '{"_rev":"1-…","type":"note","schema":3,"title":"Test edited",
        "parentId":null,"blocks":[],"metadata":[],"createdAt":0,"updatedAt":1}'
 
 # Inspect changes and conflicts.

@@ -47,6 +47,20 @@ describe('NoteBlock', () => {
     expect(changed).toHaveBeenCalledWith({ index: 0, value: 'updated' });
   });
 
+  it('forwards the highlight query to the markdown previews', () => {
+    const fixture = setup(createBlock('heading', { text: 'Hello **needle** here' }));
+    fixture.componentRef.setInput('highlight', 'need');
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.heading-preview mark.hit')?.textContent).toBe('need');
+
+    fixture.componentRef.setInput('highlight', '');
+    fixture.detectChanges();
+
+    expect(element.querySelector('.heading-preview mark.hit')).toBeNull();
+  });
+
   it('labels each column when a text block has several', () => {
     const fixture = setup(createBlock('text', { columns: ['one', 'two'], columnCount: 2 }));
     const fields = (fixture.nativeElement as HTMLElement).querySelectorAll('.text-input');

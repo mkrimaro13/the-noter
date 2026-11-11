@@ -15,10 +15,19 @@ import { NoteStore } from '../note-store';
 import { ConflictChoice, SyncService } from '../sync';
 import { conflictPreview } from '../conflict-preview';
 import { blockCountLabel, relativeTime } from '../format';
+import type { EditedWindow } from '../search';
 import { AssetSrc } from '../ui/asset-src';
+import { HighlightText } from '../ui/highlight-text';
 import { Icon } from '../ui/icon';
 
 const COLLAPSED_KEY = 'the-noter.ui.collapsed.v1';
+
+const EDITED_OPTIONS: Array<{ value: EditedWindow; label: string }> = [
+  { value: 'any', label: 'Any time' },
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'Last 7 days' },
+  { value: 'month', label: 'Last 30 days' },
+];
 
 interface SidebarRow {
   note: Note;
@@ -36,7 +45,7 @@ interface ConflictRow {
 
 @Component({
   selector: 'app-notes-sidebar',
-  imports: [Icon, AssetSrc],
+  imports: [Icon, AssetSrc, HighlightText],
   templateUrl: './notes-sidebar.html',
   styleUrl: './notes-sidebar.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -58,6 +67,7 @@ export class NotesSidebar {
   protected readonly confirmingPurge = signal<string | null>(null);
   protected readonly confirmingEmpty = signal(false);
   protected readonly trashOpen = signal(false);
+  protected readonly favoritesOpen = signal(true);
   protected readonly conflictsOpen = signal(false);
   protected readonly diagnosticsOpen = signal(false);
   protected readonly movingNote = signal<string | null>(null);
@@ -88,12 +98,12 @@ export class NotesSidebar {
   protected readonly saveTitle = computed(() => this.store.storageError() ?? this.sync.message());
 
   /**
-   * A flat, depth-first list of sidebar rows. Search switches to a simple flat
-   * result list so matches inside nested notes are never hidden behind a
-   * collapsed parent.
+   * A flat, depth-first list of sidebar rows. Search and filters switch to a
+   * simple flat result list so matches inside nested notes are never hidden
+   * behind a collapsed parent.
    */
   protected readonly rows = computed<SidebarRow[]>(() => {
-    if (this.store.query().trim()) {
+    if (this.store.query().trim() || this.store.filterActive()) {
       return this.store
         .filteredNotes()
         .map((note) => ({ note, depth: 0, hasChildren: false, expanded: false }));
@@ -195,6 +205,13 @@ export class NotesSidebar {
   private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   private readonly expandButton = viewChild<ElementRef<HTMLButtonElement>>('expandButton');
 
+  /** Distinct values of the selected metadata key, for the value select. */
+  protected readonly metadataValues = computed(() =>
+    this.store.metadataValues(this.store.filter().metadataKey),
+  );
+
+  protected readonly editedOptions = EDITED_OPTIONS;
+
   constructor() {
     effect(() => {
       this.store.selectedId();
@@ -267,6 +284,33 @@ export class NotesSidebar {
   protected clearQuery(): void {
     this.store.query.set('');
     this.searchInput()?.nativeElement.focus();
+  }
+
+  /** Removes every filter facet; the free-text query is kept intact. */
+  protected clearFilters(): void {
+    this.store.clearFilters();
+  }
+
+  protected onEditedFilter(event: Event): void {
+    this.store.patchFilter({ edited: (event.target as HTMLSelectElement).value as EditedWindow });
+  }
+
+  protected onMetadataKeyFilter(event: Event): void {
+    this.store.patchFilter({ metadataKey: (event.target as HTMLSelectElement).value });
+  }
+
+  protected onMetadataValueFilter(event: Event): void {
+    this.store.patchFilter({ metadataValue: (event.target as HTMLSelectElement).value });
+  }
+
+  protected toggleFavorites(): void {
+    this.favoritesOpen.update((open) => !open);
+  }
+
+  /** Pins or unpins a note straight from the list or favorites section. */
+  protected toggleFavorite(note: Note, event: Event): void {
+    event.stopPropagation();
+    this.store.toggleFavorite(note.id);
   }
 
   protected select(note: Note): void {

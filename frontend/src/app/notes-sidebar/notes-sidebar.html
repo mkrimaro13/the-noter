@@ -68,9 +68,96 @@
       }
     </div>
 
+    <div class="filters" [class.any]="!store.filterActive()">
+      <div class="filter-chips" role="group" aria-label="Filter notes">
+        <button
+          class="filter-chip"
+          type="button"
+          [class.on]="store.filter().favorites"
+          [attr.aria-pressed]="store.filter().favorites"
+          (click)="store.patchFilter({ favorites: !store.filter().favorites })"
+          title="Show only favorite notes"
+        >
+          <app-icon name="star" [size]="11" />
+          Favorites
+        </button>
+        <button
+          class="filter-chip"
+          type="button"
+          [class.on]="store.filter().images"
+          [attr.aria-pressed]="store.filter().images"
+          (click)="store.patchFilter({ images: !store.filter().images })"
+          title="Show only notes with images"
+        >
+          <app-icon name="image" [size]="11" />
+          Images
+        </button>
+        <button
+          class="filter-chip"
+          type="button"
+          [class.on]="store.filter().code"
+          [attr.aria-pressed]="store.filter().code"
+          (click)="store.patchFilter({ code: !store.filter().code })"
+          title="Show only notes with code"
+        >
+          <app-icon name="code" [size]="11" />
+          Code
+        </button>
+      </div>
+
+      <select
+        class="filter-select"
+        aria-label="Filter by last edit"
+        [value]="store.filter().edited"
+        (change)="onEditedFilter($event)"
+        title="Filter by last edit"
+      >
+        @for (option of editedOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+
+      <select
+        class="filter-select"
+        aria-label="Filter by metadata key"
+        [value]="store.filter().metadataKey"
+        (change)="onMetadataKeyFilter($event)"
+        title="Filter by metadata key"
+      >
+        <option value="">Any metadata</option>
+        @for (key of store.metadataKeys(); track key) {
+          <option [value]="key">{{ key }}</option>
+        }
+      </select>
+
+      @if (store.filter().metadataKey) {
+        <select
+          class="filter-select"
+          aria-label="Filter by metadata value"
+          [value]="store.filter().metadataValue"
+          (change)="onMetadataValueFilter($event)"
+          title="Filter by metadata value"
+        >
+          <option value="">Any value</option>
+          @for (value of metadataValues(); track value) {
+            <option [value]="value">{{ value }}</option>
+          }
+        </select>
+      }
+
+      @if (store.filterActive()) {
+        <button class="filter-clear" type="button" (click)="clearFilters()" title="Clear filters">
+          <app-icon name="x" [size]="11" />
+          Clear
+        </button>
+      }
+    </div>
+
     <div class="list-header">
       <span>Notes</span>
-      <span class="count">{{ store.total() }}</span>
+      <span class="count">{{
+        store.query().trim() || store.filterActive() ? store.filteredNotes().length : store.total()
+      }}</span>
     </div>
 
     <nav class="note-list" aria-label="Notes">
@@ -114,7 +201,9 @@
                   }
                 </span>
               }
-              <span class="note-title">{{ displayTitle(row.note) }}</span>
+              <span class="note-title">
+                <app-highlight-text [text]="displayTitle(row.note)" [query]="store.query()" />
+              </span>
             </span>
             <span class="note-sub">{{ subtitle(row.note) }}</span>
           </button>
@@ -143,6 +232,19 @@
             </div>
           } @else {
             <div class="note-actions">
+              <button
+                class="note-favorite"
+                type="button"
+                (click)="toggleFavorite(row.note, $event)"
+                [class.active]="row.note.favorite"
+                [attr.aria-label]="
+                  (row.note.favorite ? 'Remove ' : 'Favorite ') + displayTitle(row.note)
+                "
+                [attr.aria-pressed]="row.note.favorite"
+                [title]="row.note.favorite ? 'Remove from favorites' : 'Favorite note'"
+              >
+                <app-icon [name]="row.note.favorite ? 'star-filled' : 'star'" [size]="13" />
+              </button>
               <button
                 class="note-move"
                 type="button"
@@ -210,12 +312,73 @@
         <p class="empty-list">
           @if (store.query()) {
             No notes match “{{ store.query() }}”.
+          } @else if (store.filterActive()) {
+            No notes match the current filters.
           } @else {
             Your notes will live here.
           }
         </p>
       }
     </nav>
+
+    @if (store.favoriteNotes().length > 0 && !store.query().trim() && !store.filterActive()) {
+      <section class="favorites" [class.open]="favoritesOpen()">
+        <button
+          class="favorites-toggle"
+          type="button"
+          (click)="toggleFavorites()"
+          [attr.aria-expanded]="favoritesOpen()"
+          aria-controls="favorites-list"
+        >
+          <app-icon name="star-filled" [size]="13" />
+          <span>Favorites</span>
+          <span class="favorites-count">{{ store.favoriteNotes().length }}</span>
+          <app-icon
+            class="favorites-chevron"
+            [name]="favoritesOpen() ? 'chevron-down' : 'chevron-right'"
+            [size]="12"
+          />
+        </button>
+
+        @if (favoritesOpen()) {
+          <div class="favorites-list" id="favorites-list">
+            @for (note of store.favoriteNotes(); track note.id) {
+              <div class="favorite-row" [class.active]="note.id === store.selectedId()">
+                <button
+                  class="favorite-main"
+                  type="button"
+                  (click)="select(note)"
+                  [attr.aria-current]="note.id === store.selectedId() ? 'true' : null"
+                >
+                  @if (note.icon) {
+                    <span class="note-emoji" aria-hidden="true">
+                      @if (isImageIcon(note.icon)) {
+                        <img class="note-emoji-image" [appAssetSrc]="note.icon" alt="" />
+                      } @else {
+                        {{ note.icon }}
+                      }
+                    </span>
+                  }
+                  <span class="favorite-title" [title]="displayTitle(note)">{{
+                    displayTitle(note)
+                  }}</span>
+                  <span class="favorite-sub">{{ relativeTime(note.updatedAt) }}</span>
+                </button>
+                <button
+                  class="favorite-star"
+                  type="button"
+                  (click)="toggleFavorite(note, $event)"
+                  aria-label="Remove from favorites"
+                  title="Remove from favorites"
+                >
+                  <app-icon name="star-filled" [size]="13" />
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
 
     <section class="trash" [class.open]="trashOpen()">
       <button

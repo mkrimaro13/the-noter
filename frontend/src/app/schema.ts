@@ -6,7 +6,7 @@ import { NoteMetaType, coerceMetaValue, normalizeMetaType } from './models';
  * than {@link CURRENT_SCHEMA} is upgraded by {@link migrateNoteDoc} before it
  * reaches the store.
  */
-export const CURRENT_SCHEMA = 2;
+export const CURRENT_SCHEMA = 3;
 
 interface MigrationResult {
   doc: Record<string, unknown>;
@@ -28,7 +28,7 @@ const MIGRATIONS: Readonly<Record<number, DocMigration>> = {
    */
   1: (doc) => {
     const next = { ...doc };
-    let changed = next['schema'] !== CURRENT_SCHEMA;
+    let changed = next['schema'] !== 2;
 
     if (Array.isArray(next['metadata'])) {
       const metadata = next['metadata'].map((entry) => {
@@ -52,8 +52,18 @@ const MIGRATIONS: Readonly<Record<number, DocMigration>> = {
       if (changed) next['metadata'] = metadata;
     }
 
-    if (changed) next['schema'] = CURRENT_SCHEMA;
+    next['schema'] = 2;
     return { doc: next, changed };
+  },
+
+  /**
+   * 2 → 3: favorite flags. Documents written before favorites existed never
+   * carried `favorite`, so every stored note is backfilled with `false`.
+   */
+  2: (doc) => {
+    const favorite = typeof doc['favorite'] === 'boolean' ? doc['favorite'] : false;
+    const changed = doc['favorite'] !== favorite || doc['schema'] !== 3;
+    return { doc: { ...doc, favorite, schema: 3 }, changed };
   },
 };
 

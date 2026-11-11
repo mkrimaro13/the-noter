@@ -35,6 +35,8 @@ export type IconName =
   | 'panel-right-open'
   | 'link'
   | 'refresh'
+  | 'star'
+  | 'star-filled'
   | 'alert';
 
 @Component({
@@ -189,6 +191,16 @@ export type IconName =
         @case ('alert') {
           <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
           <path d="M12 9v4M12 17h.01" />
+        }
+        @case ('star') {
+          <path d="m12 3.6 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 17l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9Z" />
+        }
+        @case ('star-filled') {
+          <path
+            d="m12 3.6 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 17l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9Z"
+            fill="currentColor"
+            stroke="none"
+          />
         }
       }
     </svg>

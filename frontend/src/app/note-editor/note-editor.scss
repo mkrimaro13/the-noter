@@ -347,6 +347,30 @@
   min-width: 0;
 }
 
+.favorite-toggle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-top: 3px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  opacity: 0.55;
+}
+
+.favorite-toggle:hover,
+.favorite-toggle:focus-visible,
+.favorite-toggle.active {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.favorite-toggle:focus-visible {
+  outline: 2px solid var(--accent-line);
+}
+
 .note-icon {
   flex: none;
   margin-top: 1px;

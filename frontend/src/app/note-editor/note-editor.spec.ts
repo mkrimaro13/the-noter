@@ -131,6 +131,46 @@ describe('NoteEditor', () => {
     expect(store.notes().find((item) => item.id === 'n_note')?.title).toBe('Renamed note');
   });
 
+  it('pins and unpins the note from the title row', () => {
+    const { fixture, store, refresh } = setup([note('n_note')]);
+    const element = fixture.nativeElement as HTMLElement;
+    const toggle = element.querySelector<HTMLButtonElement>('.favorite-toggle')!;
+
+    expect(toggle.className).not.toContain('active');
+
+    toggle.click();
+    refresh();
+
+    expect(store.notes().find((item) => item.id === 'n_note')?.favorite).toBe(true);
+    expect(store.favoriteNotes().map((item) => item.id)).toEqual(['n_note']);
+    expect(element.querySelector('.favorite-toggle')!.className).toContain('active');
+
+    element.querySelector<HTMLButtonElement>('.favorite-toggle')!.click();
+    refresh();
+
+    expect(store.notes().find((item) => item.id === 'n_note')?.favorite).toBe(false);
+    expect(store.favoriteNotes()).toEqual([]);
+  });
+
+  it('passes the search query down to the block previews as highlights', () => {
+    const seeded = note('n_note', {
+      title: 'My note',
+      blocks: [createBlock('heading', { text: 'Search **needle** here' })],
+    });
+    const { fixture, store } = setup([seeded]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    store.query.set('needle');
+    fixture.detectChanges();
+
+    expect(element.querySelector('.heading-preview mark.hit')?.textContent).toBe('needle');
+
+    store.query.set('');
+    fixture.detectChanges();
+
+    expect(element.querySelector('.heading-preview mark.hit')).toBeNull();
+  });
+
   it('adds, edits, resolves, and removes metadata', () => {
     const { fixture, store, refresh } = setup([note('n_note', { metadata: [] })]);
     const element = fixture.nativeElement as HTMLElement;

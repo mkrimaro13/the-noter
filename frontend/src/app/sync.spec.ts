@@ -279,7 +279,7 @@ describe('SyncService', () => {
     expect(bulkBody.docs[0]).toMatchObject({
       _id: 'note:n_1',
       type: 'note',
-      schema: 2,
+      schema: 3,
       title: 'n_1',
     });
     expect(bulkCall[0]).toBe('http://couch:5984/notes/_bulk_docs');
@@ -309,7 +309,7 @@ describe('SyncService', () => {
                 _id: 'note:n_remote',
                 _rev: '1-r',
                 type: 'note',
-                schema: 2,
+                schema: 3,
                 title: 'Remote note',
                 updatedAt: 100,
                 createdAt: 5,
@@ -422,7 +422,7 @@ describe('SyncService', () => {
               _id: 'note:n_remote',
               _rev: '1-r',
               type: 'note',
-              schema: 2,
+              schema: 3,
               title: 'Remote note',
               updatedAt: 100,
               createdAt: 5,
@@ -802,7 +802,7 @@ describe('SyncService', () => {
             doc: {
               _id: 'note:n_1',
               _rev: '1-win',
-              schema: 2,
+              schema: 3,
               title: 'Winning copy',
               updatedAt: 50,
               blocks: [],
@@ -858,7 +858,7 @@ describe('SyncService', () => {
             doc: {
               _id: 'note:n_1',
               _rev: '1-win',
-              schema: 2,
+              schema: 3,
               title: 'Winning copy',
               updatedAt: 50,
               _conflicts: ['2-lose'],
@@ -935,7 +935,7 @@ describe('SyncService', () => {
             { id: 'note:n_missing_doc', changes: [{ rev: '1-a' }] },
             {
               id: 'note:n_doc',
-              doc: { _rev: '1-doc', schema: 2, title: 'From doc', updatedAt: 5, _conflicts: [42] },
+              doc: { _rev: '1-doc', schema: 3, title: 'From doc', updatedAt: 5, _conflicts: [42] },
             },
           ],
           last_seq: 'seq-2',
@@ -1055,7 +1055,7 @@ describe('SyncService', () => {
             doc: {
               _id: 'note:n_remote',
               _rev: '1-r',
-              schema: 2,
+              schema: 3,
               title: 'Remote',
               updatedAt: 100,
               blocks: [],
@@ -1089,7 +1089,7 @@ describe('SyncService', () => {
             doc: {
               _id: 'note:n_1',
               _rev: '1-win',
-              schema: 2,
+              schema: 3,
               title: 'Winning copy',
               updatedAt: 50,
               blocks: [],
@@ -1103,7 +1103,7 @@ describe('SyncService', () => {
       doc: () => ({
         _id: 'note:n_1',
         _rev: '2-lose',
-        schema: 2,
+        schema: 3,
         title: 'Losing copy',
         updatedAt: 40,
         blocks: [],
@@ -1372,7 +1372,12 @@ describe('SyncService', () => {
     await service.syncNow();
 
     const body = JSON.parse(String(callsTo(fetchMock, '/_bulk_docs')[0][1]?.body));
-    expect(body.docs[0]).toMatchObject({ _id: 'note:n_legacy', _rev: '1-old', schema: 2 });
+    expect(body.docs[0]).toMatchObject({
+      _id: 'note:n_legacy',
+      _rev: '1-old',
+      schema: 3,
+      favorite: false,
+    });
     expect(body.docs[0]['metadata']).toEqual([
       { id: 'm_1', key: 'Tag', value: 'x', type: 'text', options: [] },
     ]);

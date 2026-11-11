@@ -70,6 +70,25 @@ describe('schema migrations', () => {
     ]);
   });
 
+  it('backfills the favorite flag on schema 2 documents', () => {
+    const result = migrateNoteDoc({ schema: 2, title: 'Older build' });
+
+    expect(result.changed).toBe(true);
+    expect(result.from).toBe(2);
+    expect(result.to).toBe(CURRENT_SCHEMA);
+    expect(result.doc['schema']).toBe(CURRENT_SCHEMA);
+    expect(result.doc['favorite']).toBe(false);
+    expect(result.doc['title']).toBe('Older build');
+  });
+
+  it('keeps an explicit favorite flag while upgrading from schema 2', () => {
+    const result = migrateNoteDoc({ schema: 2, title: 'Pinned', favorite: true });
+
+    expect(result.changed).toBe(true);
+    expect(result.doc['favorite']).toBe(true);
+    expect(result.doc['schema']).toBe(CURRENT_SCHEMA);
+  });
+
   it('leaves current documents untouched', () => {
     const doc = {
       schema: CURRENT_SCHEMA,

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { InlineToken, parseInline } from '../markdown';
+import { HighlightText } from './highlight-text';
 import { Latex } from './latex';
 
 /**
@@ -9,13 +10,15 @@ import { Latex } from './latex';
 @Component({
   selector: 'app-markdown-inline',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Latex],
+  imports: [Latex, HighlightText],
   template: `
     @for (token of tokens(); track $index) {
       <span [class]="markClasses(token)">
         @switch (token.kind) {
           @case ('code') {
-            <code class="md-code">{{ token.text }}</code>
+            <code class="md-code"
+              ><app-highlight-text [text]="token.text" [query]="highlight()"
+            /></code>
           }
           @case ('link') {
             <a
@@ -24,14 +27,14 @@ import { Latex } from './latex';
               target="_blank"
               rel="noreferrer noopener"
               tabindex="-1"
-              >{{ token.text }}</a
-            >
+              ><app-highlight-text [text]="token.text" [query]="highlight()"
+            /></a>
           }
           @case ('math') {
             <app-latex class="md-math" [text]="token.text" [display]="token.display" />
           }
           @default {
-            <span>{{ token.text }}</span>
+            <span><app-highlight-text [text]="token.text" [query]="highlight()" /></span>
           }
         }
       </span>
@@ -83,6 +86,9 @@ import { Latex } from './latex';
 })
 export class MarkdownInline {
   readonly text = input.required<string>();
+  /** Optional search query whose matches are highlighted inside the preview. */
+  readonly highlight = input('');
+
   protected readonly tokens = computed(() => parseInline(this.text()));
 
   protected markClasses(token: InlineToken): string {

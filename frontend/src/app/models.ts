@@ -129,6 +129,8 @@ export interface Note {
   coverPosition: CoverPosition;
   /** Parent note id for nesting; null for a top-level note. */
   parentId: string | null;
+  /** Pinned notes stay reachable from the sidebar favorites section. */
+  favorite: boolean;
   metadata: NoteMeta[];
   blocks: NoteBlock[];
   createdAt: number;
@@ -373,6 +375,7 @@ export function createNote(parentId: string | null = null): Note {
     coverLayout: 'content',
     coverPosition: { ...DEFAULT_COVER_POSITION },
     parentId,
+    favorite: false,
     metadata: [
       {
         id: uid('m'),

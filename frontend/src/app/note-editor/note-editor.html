@@ -261,6 +261,18 @@
           (appFocusDone)="store.clearTitleFocus()"
         />
 
+        <button
+          class="favorite-toggle"
+          type="button"
+          (click)="toggleFavorite()"
+          [class.active]="note().favorite"
+          [attr.aria-label]="note().favorite ? 'Remove from favorites' : 'Add to favorites'"
+          [attr.aria-pressed]="note().favorite"
+          [title]="note().favorite ? 'Remove from favorites' : 'Add to favorites'"
+        >
+          <app-icon [name]="note().favorite ? 'star-filled' : 'star'" [size]="15" />
+        </button>
+
         @if (iconMenuOpen()) {
           <div class="icon-backdrop" (click)="closeIconMenu()" aria-hidden="true"></div>
           <div class="icon-menu" role="dialog" aria-label="Choose note icon">
@@ -500,6 +512,7 @@
             [block]="block"
             [index]="i"
             [total]="note().blocks.length"
+            [highlight]="store.query()"
             [focusOnInit]="focusBlockId() === block.id"
             (removed)="removeBlock(block.id)"
             (move)="moveBlock(i, $event)"
@@ -512,6 +525,7 @@
             [block]="block"
             [index]="i"
             [total]="note().blocks.length"
+            [highlight]="store.query()"
             [focusOnInit]="focusBlockId() === block.id"
             [focusColumn]="focusColumnFor(block.id)"
             (changed)="onBlockChange(block.id, $event)"

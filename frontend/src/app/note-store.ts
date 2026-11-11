@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { AssetStore, isDataImage } from './assets';
 import { FenceShortcut, MarkdownBlockShortcut } from './markdown';
+import { EMPTY_FILTER, SearchFilter, filterActive, matchesFilter } from './search';
 import { SyncService, type RemoteApply } from './sync';
 import {
   BlockPatch,
@@ -90,13 +91,86 @@ export class NoteStore {
 
   readonly query = signal('');
 
-  readonly filteredNotes = computed(() => this.search(this.query()));
+  /** Sidebar filters layered on top of the free-text query. */
+  readonly filter = signal<SearchFilter>({ ...EMPTY_FILTER });
+
+  /** True when any filter facet is set, narrowing the list without a query. */
+  readonly filterActive = computed(() => filterActive(this.filter()));
+
+  /** Notes pinned as favorites, most recently edited first. */
+  readonly favoriteNotes = computed(() => this.notes().filter((note) => note.favorite));
+
+  readonly filteredNotes = computed(() => {
+    const query = this.query().trim().toLowerCase();
+    const filter = this.filter();
+    const active = filterActive(filter);
+    if (!query && !active) return this.notes();
+
+    const now = Date.now();
+    return this.notes().filter(
+      (note) =>
+        (!query || matchesQuery(note, query)) && (!active || matchesFilter(note, filter, now)),
+    );
+  });
 
   /** Notes matching a free-text query across titles, metadata, and writing. */
   search(value: string): Note[] {
     const query = value.trim().toLowerCase();
     if (!query) return this.notes();
     return this.notes().filter((note) => matchesQuery(note, query));
+  }
+
+  /** Distinct metadata keys across active notes, for the filter select. */
+  readonly metadataKeys = computed(() => {
+    const keys = new Set<string>();
+    for (const note of this.notes()) {
+      for (const meta of note.metadata) {
+        const key = meta.key.trim();
+        if (key) keys.add(key);
+      }
+    }
+    return [...keys].sort((a, b) => a.localeCompare(b));
+  });
+
+  /** Merges a partial facet change into the sidebar filter. */
+  patchFilter(patch: Partial<SearchFilter>): void {
+    this.filter.update((filter) => {
+      const next = { ...filter, ...patch };
+      // Changing the metadata key invalidates the paired value selection.
+      if (
+        patch.metadataValue === undefined &&
+        patch.metadataKey !== undefined &&
+        patch.metadataKey !== filter.metadataKey
+      ) {
+        next.metadataValue = '';
+      }
+      return next;
+    });
+  }
+
+  /** Removes every filter facet while keeping the free-text query intact. */
+  clearFilters(): void {
+    this.filter.set({ ...EMPTY_FILTER });
+  }
+
+  /** Distinct values used by `key` across active notes, for the filter select. */
+  metadataValues(key: string): string[] {
+    const target = key.trim().toLowerCase();
+    if (!target) return [];
+    const values = new Set<string>();
+    for (const note of this.notes()) {
+      for (const meta of note.metadata) {
+        if (meta.key.trim().toLowerCase() !== target) continue;
+        const value = meta.value.trim();
+        if (value) values.add(value);
+      }
+    }
+    return [...values].sort((a, b) => a.localeCompare(b));
+  }
+
+  /** Flips the favorite pin of a note; the change is undoable like any edit. */
+  toggleFavorite(noteId: string): void {
+    this.mutate(noteId, (note) => ({ ...note, favorite: !note.favorite }), 'Toggle favorite');
   }
 
   readonly total = computed(() => this.notes().length);
@@ -156,6 +230,7 @@ export class NoteStore {
     this.sync.markDirty(note.id);
     this.recordHistory('create', 'Create note', [{ id: note.id, before: null, after: note }]);
     this.query.set('');
+    this.clearFilters();
     this.select(note.id);
     this.pendingTitleFocus.set(note.id);
     return note;
@@ -172,6 +247,7 @@ export class NoteStore {
     this.sync.markDirty(note.id);
     this.recordHistory('create', 'Create note', [{ id: note.id, before: null, after: note }]);
     this.query.set('');
+    this.clearFilters();
     this.select(note.id);
     this.pendingTitleFocus.set(note.id);
     return note;
@@ -1243,6 +1319,7 @@ function normalizeNote(value: unknown): Note | null {
     coverLayout: value['coverLayout'] === 'landscape' ? 'landscape' : 'content',
     coverPosition: normalizeCoverPosition(value['coverPosition']),
     parentId: stringOr(value['parentId'], '') || null,
+    favorite: value['favorite'] === true,
     metadata: metadataRaw.map(normalizeMeta).filter((meta): meta is NoteMeta => meta !== null),
     blocks: blocksRaw.map(normalizeBlock).filter((block): block is NoteBlock => block !== null),
     createdAt,

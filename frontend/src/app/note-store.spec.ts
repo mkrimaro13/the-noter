@@ -10,6 +10,7 @@ import {
   type RemoteNoteDoc,
 } from './sync';
 import { Note, NoteBlock, createBlock, createImageColumn, createNote } from './models';
+import { EMPTY_FILTER } from './search';
 import { NoteStore } from './note-store';
 
 const NOTES_KEY = 'the-noter.notes.v1';
@@ -185,6 +186,117 @@ describe('NoteStore', () => {
         .map((item) => item.id)
         .sort(),
     ).toEqual(['n_caption', 'n_item', 'n_meta', 'n_text']);
+  });
+
+  it('toggles favorites and lists them apart from the tree', () => {
+    const pinned = note('n_pin', { title: 'Pinned' });
+    const plain = note('n_plain', { title: 'Plain' });
+    const { store } = setup([pinned, plain]);
+
+    expect(store.favoriteNotes()).toEqual([]);
+
+    store.toggleFavorite('n_pin');
+    expect(store.favoriteNotes().map((item) => item.id)).toEqual(['n_pin']);
+    expect(store.notes().find((item) => item.id === 'n_pin')?.favorite).toBe(true);
+    expect(store.notes().find((item) => item.id === 'n_plain')?.favorite).toBe(false);
+
+    store.toggleFavorite('n_pin');
+    expect(store.favoriteNotes()).toEqual([]);
+    expect(store.notes().find((item) => item.id === 'n_pin')?.favorite).toBe(false);
+  });
+
+  it('undoes and redoes toggling a favorite', () => {
+    const { store } = setup([note('n_pin')]);
+
+    store.toggleFavorite('n_pin');
+    expect(store.undoLabel()).toBe('Toggle favorite');
+
+    store.undo();
+    expect(store.notes()[0].favorite).toBe(false);
+
+    store.redo();
+    expect(store.notes()[0].favorite).toBe(true);
+  });
+
+  it('narrows the list with sidebar filters', () => {
+    const pinned = note('n_pin', { title: 'Grocery A', favorite: true });
+    const plain = note('n_plain', { title: 'Grocery B' });
+    const { store } = setup([pinned, plain]);
+
+    expect(store.filterActive()).toBe(false);
+    expect(store.filteredNotes()).toHaveLength(2);
+
+    store.patchFilter({ favorites: true });
+
+    expect(store.filterActive()).toBe(true);
+    expect(store.filteredNotes().map((item) => item.id)).toEqual(['n_pin']);
+
+    store.clearFilters();
+
+    expect(store.filterActive()).toBe(false);
+    expect(store.filteredNotes()).toHaveLength(2);
+  });
+
+  it('combines the query with the filters', () => {
+    const pinned = note('n_pin', { title: 'Grocery A', favorite: true });
+    const plain = note('n_plain', { title: 'Grocery B' });
+    const { store } = setup([pinned, plain]);
+
+    store.query.set('grocery');
+    expect(store.filteredNotes()).toHaveLength(2);
+
+    store.patchFilter({ favorites: true });
+    expect(store.filteredNotes().map((item) => item.id)).toEqual(['n_pin']);
+
+    store.query.set('');
+    expect(store.filteredNotes().map((item) => item.id)).toEqual(['n_pin']);
+
+    store.clearFilters();
+    store.patchFilter({ code: true });
+    expect(store.filteredNotes()).toEqual([]);
+  });
+
+  it('clears the filters when creating a note so it stays visible', () => {
+    const { store } = setup([note('n_a')]);
+
+    store.patchFilter({ favorites: true, edited: 'today', metadataKey: 'Status' });
+
+    store.createNote();
+
+    expect(store.filter()).toEqual(EMPTY_FILTER);
+  });
+
+  it('resets the paired metadata value when the filter key changes', () => {
+    const { store } = setup([note('n_a')]);
+
+    store.patchFilter({ metadataKey: 'Status', metadataValue: 'active' });
+    expect(store.filter().metadataValue).toBe('active');
+
+    store.patchFilter({ metadataKey: 'Priority' });
+    expect(store.filter().metadataKey).toBe('Priority');
+    expect(store.filter().metadataValue).toBe('');
+
+    store.patchFilter({ metadataKey: 'Status', metadataValue: 'done' });
+    expect(store.filter().metadataValue).toBe('done');
+  });
+
+  it('collects distinct metadata keys and values for the filters', () => {
+    const a = note('n_a', {
+      metadata: [{ id: 'm_1', key: 'Status', value: 'active', type: 'text', options: [] }],
+    });
+    const b = note('n_b', {
+      metadata: [{ id: 'm_2', key: 'Priority', value: 'high', type: 'text', options: [] }],
+    });
+    const duplicate = note('n_dup', {
+      metadata: [{ id: 'm_3', key: ' Status ', value: 'done', type: 'text', options: [] }],
+    });
+    const { store } = setup([a, b, duplicate]);
+
+    expect(store.metadataKeys()).toEqual(['Priority', 'Status']);
+    expect(store.metadataValues('status')).toEqual(['active', 'done']);
+    expect(store.metadataValues('Status')).toEqual(['active', 'done']);
+    expect(store.metadataValues('missing')).toEqual([]);
+    expect(store.metadataValues('')).toEqual([]);
   });
 
   it('does not select a note that does not exist', () => {

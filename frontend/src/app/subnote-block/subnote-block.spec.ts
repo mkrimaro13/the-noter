@@ -94,6 +94,19 @@ describe('SubnoteBlock', () => {
     expect(element.querySelector('.subnote-open')?.textContent).toContain('Open');
   });
 
+  it('forwards the highlight query to the nested blocks', () => {
+    const child = {
+      ...childNote(),
+      blocks: [{ ...createBlock('heading', { text: 'Inner **needle**' }), id: 'b_head' }],
+    };
+    const { fixture } = setup(subnoteBlock(), child);
+    fixture.componentRef.setInput('highlight', 'need');
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.heading-preview mark.hit')?.textContent).toBe('need');
+  });
+
   it('updates the child title while typing', () => {
     const { fixture, store } = setup();
     const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(

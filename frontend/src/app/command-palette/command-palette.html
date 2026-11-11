@@ -70,7 +70,9 @@
             }
           </span>
           <span class="palette-copy">
-            <span class="palette-label">{{ displayTitle(note) }}</span>
+            <span class="palette-label">
+              <app-highlight-text [text]="displayTitle(note)" [query]="query()" />
+            </span>
             <span class="palette-hint">{{ note.blocks.length }} blocks</span>
           </span>
         </button>

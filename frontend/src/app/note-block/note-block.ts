@@ -76,6 +76,9 @@ export class NoteBlock {
   /** Visual image-column index to focus after a paste or column change. */
   readonly focusColumn = input<number | null>(null);
 
+  /** Search query whose matches are highlighted in the markdown previews. */
+  readonly highlight = input('');
+
   readonly changed = output<BlockPatch>();
   readonly columnChanged = output<{ index: number; value: string }>();
   readonly columnCountChanged = output<number>();

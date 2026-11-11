@@ -13,6 +13,7 @@ import {
 import { Note, isImageIcon } from '../models';
 import { NoteStore } from '../note-store';
 import { AssetSrc } from '../ui/asset-src';
+import { HighlightText } from '../ui/highlight-text';
 import { Icon } from '../ui/icon';
 
 export type PaletteCommand = 'new-note' | 'toggle-notes' | 'toggle-outline';
@@ -37,7 +38,7 @@ const MAX_NOTES = 8;
  */
 @Component({
   selector: 'app-command-palette',
-  imports: [Icon, AssetSrc],
+  imports: [Icon, AssetSrc, HighlightText],
   templateUrl: './command-palette.html',
   styleUrl: './command-palette.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

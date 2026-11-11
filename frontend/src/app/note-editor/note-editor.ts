@@ -502,6 +502,11 @@ export class NoteEditor {
     this.store.setTitle(this.note().id, (event.target as HTMLInputElement).value);
   }
 
+  /** Pins or unpins the note being edited from the favorites section. */
+  protected toggleFavorite(): void {
+    this.store.toggleFavorite(this.note().id);
+  }
+
   protected addMeta(): void {
     this.focusMetaId.set(this.store.addMeta(this.note().id));
   }
@@ -840,9 +845,8 @@ export class NoteEditor {
     const note = this.note();
     // Exporting is rare, so keep its HTML/Markdown builders out of the initial
     // bundle and load them only when the user asks for a file.
-    const { downloadText, exportFileName, noteToHtml, noteToMarkdown, printHtml } = await import(
-      '../export'
-    );
+    const { downloadText, exportFileName, noteToHtml, noteToMarkdown, printHtml } =
+      await import('../export');
 
     if (format === 'markdown') {
       const markdown = await noteToMarkdown(note, { assets: this.assets });

@@ -66,6 +66,9 @@ export class SubnoteBlock {
   /** Nesting depth, used only to soften the surface of deeper sub-notes. */
   readonly depth = input(0);
 
+  /** Search query forwarded to inner previews, matching the parent editor. */
+  readonly highlight = input('');
+
   readonly removed = output<void>();
   readonly move = output<number>();
   readonly focused = output<void>();

@@ -28,7 +28,19 @@ This folder is the Angular app of the monorepo. The repository root holds the Co
   directly in the parent's writing flow, where its title and blocks can be edited in place and
   opened in the full editor when needed. Deleting a note promotes its direct children to the
   deleted note's parent instead of removing them, removes any inline sub-note blocks pointing
-  at it, and search flattens the tree so matches are never hidden.
+  at it, and search or the filters flatten the tree so matches are never hidden.
+- **Search with highlights** — the sidebar search matches titles, metadata, and writing, and
+  shows why each note matched: hits are highlighted in the sidebar titles, in the editor's
+  Markdown previews (text columns, headings, and list items, including inline code and links,
+  and the same previews inside embedded sub-note blocks), and in the command palette's note
+  results. A filter row under the search narrows the list further — chips for favorites, notes
+  with images, and notes with code; a select for the last edit (today, last 7 or 30 days); and a
+  metadata key with its value. Filters combine with the free-text query and can be cleared in
+  one click without losing the query.
+- **Favorites** — star a note from its sidebar row or from the button beside the editor title
+  to pin it; the toggle is undoable like any other edit. Pinned notes get a collapsible
+  quick-access section between the note list and the trash, and the Favorites chip filters the
+  list down to them.
 - **Icons and covers** — give a note an emoji or short text icon (presets or your own), upload
   an image file, or paste an image link. Bad links and unreadable files are rejected with a
   friendly prompt to try another image. Drop a new image onto an existing cover to replace it,
@@ -265,13 +277,14 @@ src/app/
   latex.ts                  LaTeX detection and delimiter stripping
   image.ts                  image reading, scaling, and compression
   format.ts                 relative time and word count helpers
+  search.ts                 sidebar filters, favorites, and match highlighting
   notes-sidebar/            nested note tree, search, conflicts section, sync footer
   note-editor/              cover, icon, title, metadata, sub-notes, block list
   note-block/               text, heading, list, image, code, and function editors
   note-block/image-column/  one image-block column (writing or picture)
   subnote-block/            an inline child note embedded in the parent's block flow
   note-outline/             right-hand heading hierarchy and typeface selector
-  ui/                       icon set, font selector, inline Markdown preview, code highlight, LaTeX, autosize, focus helper
+  ui/                       icon set, font selector, inline Markdown preview, code highlight, LaTeX, match highlighting, autosize, focus helper
 ```
 
 Notes are stored under `the-noter.notes.v1` in `localStorage`; selected-note, sidebar

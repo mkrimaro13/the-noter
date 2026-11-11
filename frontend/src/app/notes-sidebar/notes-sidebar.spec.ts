@@ -117,6 +117,164 @@ describe('NotesSidebar', () => {
     expect(document.activeElement).toBe(element.querySelector('.search input'));
   });
 
+  it('highlights query matches inside the note titles', () => {
+    const { fixture, store } = setup([
+      note('n_a', { title: 'Grocery list' }),
+      note('n_b', { title: 'Project plan' }),
+    ]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    store.query.set('groc');
+    fixture.detectChanges();
+
+    const marks = Array.from(element.querySelectorAll('.note-title mark.hit')).map(
+      (mark) => mark.textContent,
+    );
+    expect(marks).toEqual(['Groc']);
+    expect(titles(element)).toEqual(['Grocery list']);
+  });
+
+  it('filters with the chips and clears them without touching the query', () => {
+    const pinned = note('n_pin', { title: 'Pinned note', favorite: true, updatedAt: 200 });
+    const plain = note('n_plain', { title: 'Plain note', updatedAt: 100 });
+    const { fixture, store } = setup([pinned, plain]);
+    const element = fixture.nativeElement as HTMLElement;
+    store.query.set('note');
+    fixture.detectChanges();
+
+    element.querySelectorAll<HTMLButtonElement>('.filter-chip')[0]!.click();
+    fixture.detectChanges();
+
+    expect(store.filterActive()).toBe(true);
+    expect(titles(element)).toEqual(['Pinned note']);
+    expect(element.querySelector('.count')?.textContent?.trim()).toBe('1');
+
+    element.querySelector<HTMLButtonElement>('.filter-clear')!.click();
+    fixture.detectChanges();
+
+    expect(store.filterActive()).toBe(false);
+    expect(store.query()).toBe('note');
+    expect(titles(element)).toEqual(['Pinned note', 'Plain note']);
+  });
+
+  it('flattens the tree while a filter is active', () => {
+    const parent = note('n_parent', { title: 'Parent', favorite: true });
+    const child = note('n_child', { title: 'Child', parentId: 'n_parent' });
+    const { fixture, store } = setup([parent, child]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    store.patchFilter({ favorites: true });
+    fixture.detectChanges();
+
+    expect(titles(element)).toEqual(['Parent']);
+    expect(element.querySelector('.note-row.nested')).toBeNull();
+
+    store.clearFilters();
+    fixture.detectChanges();
+
+    expect(titles(element)).toEqual(['Parent', 'Child']);
+    expect(element.querySelector('.note-row.nested')).not.toBeNull();
+  });
+
+  it('explains when filters alone leave nothing', () => {
+    const { fixture, store } = setup([note('n_a', { title: 'Alpha' })]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    store.patchFilter({ code: true });
+    fixture.detectChanges();
+
+    expect(element.querySelector('.empty-list')?.textContent).toContain(
+      'No notes match the current filters.',
+    );
+  });
+
+  it('filters by edit window and metadata from the selects', () => {
+    const fresh = note('n_fresh', { title: 'Fresh note', updatedAt: Date.now() });
+    const stale = note('n_stale', {
+      title: 'Stale note',
+      updatedAt: Date.now() - 40 * 24 * 60 * 60 * 1000,
+      metadata: [{ id: 'm_1', key: 'Status', value: 'active', type: 'text', options: [] }],
+    });
+    const { fixture, store } = setup([fresh, stale]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    const edited = element.querySelectorAll<HTMLSelectElement>('.filter-select')[0]!;
+    edited.value = 'month';
+    edited.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(titles(element)).toEqual(['Fresh note']);
+
+    const key = element.querySelectorAll<HTMLSelectElement>('.filter-select')[1]!;
+    key.value = 'Status';
+    key.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(titles(element)).toEqual([]);
+    expect(store.filter().metadataKey).toBe('Status');
+
+    const value = element.querySelectorAll<HTMLSelectElement>('.filter-select')[2]!;
+    value.value = 'active';
+    value.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(titles(element)).toEqual([]);
+
+    edited.value = 'any';
+    edited.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(titles(element)).toEqual(['Stale note']);
+  });
+
+  it('pins a note from the row actions and shows the favorites section', () => {
+    const { fixture, store } = setup([note('n_a', { title: 'Alpha' })]);
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('.favorites')).toBeNull();
+
+    rowFor(element, 'Alpha').querySelector<HTMLButtonElement>('.note-favorite')!.click();
+    fixture.detectChanges();
+
+    expect(store.notes()[0].favorite).toBe(true);
+    expect(rowFor(element, 'Alpha').querySelector('.note-favorite')!.className).toContain('active');
+    expect(element.querySelector('.favorites')).not.toBeNull();
+  });
+
+  it('lists favorites in their own section and un-pins from there', () => {
+    const pinned = note('n_pin', { title: 'Pinned note', favorite: true });
+    const { fixture, store } = setup([pinned, note('n_other', { title: 'Other note' })]);
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.favorites-count')?.textContent?.trim()).toBe('1');
+    expect(element.querySelector('.favorite-title')?.textContent?.trim()).toBe('Pinned note');
+
+    const row = element.querySelector<HTMLElement>('.favorite-row')!;
+    row.querySelector<HTMLButtonElement>('.favorite-main')!.click();
+    expect(store.selectedId()).toBe('n_pin');
+
+    row.querySelector<HTMLButtonElement>('.favorite-star')!.click();
+    fixture.detectChanges();
+
+    expect(store.notes().find((item) => item.id === 'n_pin')?.favorite).toBe(false);
+    expect(element.querySelector('.favorites')).toBeNull();
+  });
+
+  it('hides the favorites section while searching or filtering', () => {
+    const pinned = note('n_pin', { title: 'Pinned note', favorite: true });
+    const { fixture, store } = setup([pinned, note('n_other', { title: 'Other note' })]);
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('.favorites')).not.toBeNull();
+
+    store.query.set('pinned');
+    fixture.detectChanges();
+    expect(element.querySelector('.favorites')).toBeNull();
+
+    store.query.set('');
+    store.patchFilter({ images: true });
+    fixture.detectChanges();
+    expect(element.querySelector('.favorites')).toBeNull();
+
+    store.clearFilters();
+    fixture.detectChanges();
+    expect(element.querySelector('.favorites')).not.toBeNull();
+  });
+
   it('selects a note and emits navigated', () => {
     const { fixture, store } = setup([note('n_a', { title: 'Alpha' })]);
     const element = fixture.nativeElement as HTMLElement;

@@ -27,6 +27,10 @@ The repository is split into two independent projects:
   from other devices. Tailscale and remote access are a later step.
 - **Images are attachments.** Picture bytes live in `asset:<sha256>` CouchDB documents and are
   cached locally in IndexedDB, so the notes array in `localStorage` stays small.
+- **Search that shows its matches.** The sidebar search highlights every hit — note titles in the
+  list, writing previews in the editor, and results in the command palette — and can narrow the
+  list with filters (favorites, images, code, last edit, metadata). Starred notes are pinned as
+  favorites with their own quick-access section in the sidebar.
 - **Server maintenance.** A `maintenance` service purges old delete tombstones and requests
   compaction on a schedule (every 6 h by default), so the database does not grow forever. Its
   progress is shown in the app's diagnostics popover next to the "Sync now" button.

@@ -30,7 +30,10 @@ worker.
 - Notas con título, icono, cover, metadatos visibles y bloques reordenables por drag & drop.
 - Bloques de texto, heading, lista, imagen, código, función y sub-nota.
 - Anidación de notas con árbol en la sidebar, breadcrumbs y bloques de sub-nota editables inline.
-- Búsqueda por título, metadatos, texto, listas y columnas de imagen.
+- Búsqueda por título, metadatos, texto, listas y columnas de imagen, con resaltado de
+  coincidencias en la sidebar, el editor y la palette.
+- Filtros de sidebar por favoritos, imágenes, código, fecha de última edición y metadato, y notas
+  favoritas fijables desde la fila o el editor con sección propia de acceso rápido.
 - Outline derecho generado desde los headings, con indentación y navegación por clic.
 - Columnas de texto e imagen (hasta 4), con apilado responsive.
 - Imágenes por archivo, arrastre, pegado o URL, con escalado/compresión y reemplazo.
@@ -177,8 +180,9 @@ endurecimiento para producción.
 #### P1.6 — Búsqueda y navegación
 
 - [x] Command palette (`Ctrl/Cmd + K`).
-- [ ] Resaltado de coincidencias y filtros por tipo/fecha/metadato.
-- [ ] Búsquedas guardadas, recientes y favoritos.
+- [x] Resaltado de coincidencias y filtros por tipo/fecha/metadato (chips de favoritos, imágenes
+      y código; ventana de edición; par clave/valor de metadato).
+- [ ] Búsquedas guardadas y recientes.
 - [ ] **Done when:** encontrar y abrir cualquier nota toma pocos segundos.
 
 #### P1.7 — Internacionalización y accesibilidad
@@ -295,11 +299,13 @@ endurecimiento para producción.
 | 9 | Almacenamiento de imágenes como attachments + IndexedDB | ✅ Completada | `feat(assets): etapa 9 - imagenes como attachments e IndexedDB` |
 | 10 | Papelera, undo/redo y export Markdown/PDF | ✅ Completada | `feat(data): etapa 10 - papelera, undo/redo y export` |
 | 11 | Endurecimiento de sync (compactación, migraciones, conflictos) | ✅ Completada | `feat(sync): etapa 11 - endurecimiento de sync` |
-| 12 | Búsqueda con resaltado, filtros y favoritos | ⏳ Pendiente | — |
+| 12 | Búsqueda con resaltado, filtros y favoritos | ✅ Completada | `feat(search): etapa 12 - busqueda con resaltado, filtros y favoritos` |
 | 13 | E2E, accesibilidad, i18n y rendimiento | ⏳ Pendiente | — |
 
 ### Próxima etapa
 
-**Etapa 12 — Búsqueda con resaltado, filtros y favoritos.** Resaltar las coincidencias de búsqueda
-en la sidebar y el editor, filtrar por tipo/fecha/metadato, y permitir fijar notas favoritas con una
-vista rápida de acceso.
+**Etapa 13 — E2E, accesibilidad, i18n y rendimiento.** Añadir pruebas E2E con Playwright para los
+flujos reales (crear, anidar, buscar, sincronizar y resolver un conflicto), auditar y corregir
+accesibilidad (ARIA, foco, contraste, navegación completa por teclado y `prefers-reduced-motion`),
+centralizar los textos de la UI y el formato de fechas para no mezclar idiomas, y fijar un
+presupuesto de rendimiento del bundle.

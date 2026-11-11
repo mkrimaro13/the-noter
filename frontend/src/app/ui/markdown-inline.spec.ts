@@ -2,9 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MarkdownInline } from './markdown-inline';
 
-function render(text: string): HTMLElement {
+function render(text: string, highlight = ''): HTMLElement {
   const fixture = TestBed.createComponent(MarkdownInline);
   fixture.componentRef.setInput('text', text);
+  fixture.componentRef.setInput('highlight', highlight);
   fixture.detectChanges();
   return fixture.nativeElement as HTMLElement;
 }
@@ -60,6 +61,29 @@ describe('MarkdownInline', () => {
 
     expect(code.querySelector('.md-bold .md-code')?.textContent).toBe('npm test');
     expect(link.querySelector('.md-italic a')?.textContent).toBe('docs');
+  });
+
+  it('highlights query matches in plain text', () => {
+    const element = render('hello world', 'wor');
+
+    expect(element.querySelector('mark.hit')?.textContent).toBe('wor');
+    expect(element.textContent).toContain('hello world');
+  });
+
+  it('highlights query matches inside code and link tokens', () => {
+    const code = render('use `npm test`', 'npm');
+    const link = render('[docs](https://example.com/docs)', 'doc');
+
+    expect(code.querySelector('.md-code mark.hit')?.textContent).toBe('npm');
+    expect(code.querySelector('.md-code')?.textContent).toBe('npm test');
+    expect(link.querySelector('a mark.hit')?.textContent).toBe('doc');
+    expect(link.querySelector('a')?.textContent).toBe('docs');
+  });
+
+  it('leaves math tokens out of the highlighting', () => {
+    const element = render('energy $E = mc^2$ here', 'E =');
+
+    expect(element.querySelector('mark.hit')).toBeNull();
   });
 
   it('renders inline math with KaTeX', async () => {
